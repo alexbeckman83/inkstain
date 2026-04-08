@@ -559,7 +559,7 @@
       <li><a href="#how">How it works</a></li>
       <li><a href="#for-whom">For authors</a></li>
       <li><a href="#for-whom">For publishers</a></li>
-      <li><a href="#waitlist" class="nav-cta">Join waitlist</a></li>
+      <li><a href="https://github.com/alexbeckman83/inkstain" style="font-size:14px; color:var(--muted); text-decoration:none; transition:color .2s;" onmouseover="this.style.color='var(--ink)'" onmouseout="this.style.color='var(--muted)'">Open source ↗</a></li>
     </ul>
   </nav>
 
@@ -708,16 +708,15 @@
 
   <!-- ── CTA ── -->
   <section class="cta" id="waitlist">
-    <h2 class="cta-heading">Stay in the loop.</h2>
-    <p class="cta-sub">Get notified when the Windows version launches and when publisher integrations go live.</p>
-    <form class="email-form" onsubmit="handleSubmit(event)">
-      <input type="email" id="email-input" placeholder="your@email.com" required>
-      <button type="submit">Join waitlist</button>
-    </form>
-    <p class="success-msg" id="success-msg">You're on the list. The written word will prevail.</p>
-    <p class="cta-note">
-      For publishers: <a href="mailto:alex@inkstain.ai">contact us about deploying Inkstain to your authors →</a>
-    </p>
+    <div style="text-align:center; padding:4rem 2rem;">
+      <p style="font-family:'Playfair Display',serif; font-size:clamp(28px,4vw,42px); font-weight:700; color:var(--ink); margin-bottom:1rem;">Ready to start your Trail?</p>
+      <p style="font-size:18px; color:var(--muted); margin-bottom:2rem; max-width:480px; margin-left:auto; margin-right:auto;">Download the app. Open it. Start writing. Your Trail begins the moment you do.</p>
+      <div style="display:flex; gap:1rem; justify-content:center; flex-wrap:wrap;">
+        <a href="https://github.com/alexbeckman83/inkstain/releases/download/v1.1.0/Inkstain-Trail-Mac.zip" class="btn-primary">↓ Download for Mac</a>
+        <a href="https://github.com/alexbeckman83/inkstain/releases/download/v1.1.0/Inkstain-Trail-Windows.zip" class="btn-primary">↓ Download for Windows</a>
+      </div>
+      <p style="font-size:13px; color:var(--muted); margin-top:1rem; font-style:italic;">Free for authors. Always.</p>
+    </div>
   </section>
 
   <!-- ── FOOTER ── -->
@@ -727,29 +726,6 @@
   </footer>
 
   <script>
-    function handleSubmit(e) {
-      e.preventDefault();
-      const email = document.getElementById('email-input').value;
-      const form = e.target;
-      const msg = document.getElementById('success-msg');
-
-      // Store email - replace this URL with your actual backend endpoint
-      fetch('/api/waitlist', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email })
-      })
-      .then(() => {
-        form.style.display = 'none';
-        msg.style.display = 'block';
-      })
-      .catch(() => {
-        // Even if backend isn't ready, show success
-        form.style.display = 'none';
-        msg.style.display = 'block';
-      });
-    }
-
     // Subtle scroll-based fade for sections
     const observer = new IntersectionObserver((entries) => {
       entries.forEach(entry => {
