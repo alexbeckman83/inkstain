@@ -568,6 +568,17 @@
     <p class="hero-eyebrow fade-up">Authorship provenance for the AI era</p>
     <h1 class="hero-title fade-up delay-1">Your work.<br><em>Permanently</em><br>yours.</h1>
     <p class="hero-sub fade-up delay-2">Inkstain captures a tamper-evident record of how your manuscript was made — silently, invisibly, always on your side — so you can prove what's yours when it matters.</p>
+    <p id="live-stats" style="font-size:14px; letter-spacing:2px; text-transform:uppercase; color:var(--amber); margin-bottom:2rem; font-family:'EB Garamond',serif;">
+      Loading...
+    </p>
+    <script>
+    fetch('/api/stats').then(r=>r.json()).then(d=>{
+      document.getElementById('live-stats').textContent =
+        `${d.waitlist} authors · ${d.certificates} certificates issued · ${d.hours} hours witnessed`;
+    }).catch(()=>{
+      document.getElementById('live-stats').style.display='none';
+    });
+    </script>
     <div style="display:flex; gap:1rem; flex-wrap:wrap; margin-top:2.5rem;">
       <a href="https://github.com/alexbeckman83/inkstain/releases/download/1.0.0/Inkstain-Trail-Mac.zip" class="btn-primary">
         ↓ Download for Mac — free

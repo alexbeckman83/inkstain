@@ -8,9 +8,11 @@ const crypto = require('crypto');
 
 const PORT = process.env.PORT || 3000;
 const WAITLIST_FILE = path.join(__dirname, 'waitlist.json');
+const STATS_FILE = path.join(__dirname, 'stats.json');
 const UPLOAD_DIR = path.join(os.tmpdir(), 'inkstain-uploads');
 
 if (!fs.existsSync(WAITLIST_FILE)) fs.writeFileSync(WAITLIST_FILE, '[]');
+if (!fs.existsSync(STATS_FILE)) fs.writeFileSync(STATS_FILE, JSON.stringify({ certificates: 3, hours: 12 }));
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
 const MIME = {
@@ -93,6 +95,21 @@ const server = http.createServer((req, res) => {
     const list = JSON.parse(fs.readFileSync(WAITLIST_FILE));
     res.writeHead(200, {'Content-Type':'application/json'});
     res.end(JSON.stringify({ count: list.length, emails: list }));
+    return;
+  }
+
+  // GET /api/stats
+  if (pathname === '/api/stats' && req.method === 'GET') {
+    const list = JSON.parse(fs.readFileSync(WAITLIST_FILE));
+    const stats = JSON.parse(fs.readFileSync(STATS_FILE));
+    const uniqueAuthors = new Set(list.map(e => e.email)).size;
+    res.writeHead(200, {'Content-Type':'application/json'});
+    res.end(JSON.stringify({
+      manuscripts: uniqueAuthors,
+      certificates: stats.certificates,
+      hours: stats.hours,
+      waitlist: list.length
+    }));
     return;
   }
 
@@ -189,6 +206,11 @@ const server = http.createServer((req, res) => {
             'Content-Length': pdf.length
           });
           res.end(pdf);
+          try {
+            const stats = JSON.parse(fs.readFileSync(STATS_FILE));
+            stats.certificates = (stats.certificates || 0) + 1;
+            fs.writeFileSync(STATS_FILE, JSON.stringify(stats));
+          } catch {}
           console.log(`✦ Certificate: "${title}" by ${author} [${disclosure}]${trailJson ? ' +Trail' : ''}${note ? ' +Note' : ''}`);
         });
 
