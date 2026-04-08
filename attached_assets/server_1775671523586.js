@@ -149,6 +149,8 @@ const server = http.createServer((req, res) => {
           fs.writeFileSync(trailPath, trailJson);
         }
 
+        const certPath = path.join(UPLOAD_DIR, `${tempId}_cert.pdf`);
+
         const proc = spawn('python3', [
           path.join(__dirname, 'certificate.py'),
           docxPath, author, title, disclosure, trailPath, note
