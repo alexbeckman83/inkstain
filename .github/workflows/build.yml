@@ -1,0 +1,134 @@
+name: Build Inkstain Trail
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+
+  build-mac:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install rumps pyinstaller
+
+      - name: Build Mac app
+        run: |
+          cd inkstain-desktop
+          pyinstaller \
+            --name "Inkstain Trail" \
+            --windowed \
+            --onedir \
+            --hidden-import rumps \
+            --hidden-import sqlite3 \
+            inkstain_agent/main.py
+
+      - name: Zip Mac app
+        run: |
+          cd inkstain-desktop/dist
+          zip -r "Inkstain-Trail-Mac.zip" "Inkstain Trail.app"
+
+      - name: Upload Mac artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Inkstain-Trail-Mac
+          path: inkstain-desktop/dist/Inkstain-Trail-Mac.zip
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install pystray Pillow pyinstaller
+
+      - name: Build Windows exe
+        run: |
+          cd inkstain-desktop
+          pyinstaller `
+            --name "Inkstain Trail" `
+            --windowed `
+            --onefile `
+            --hidden-import pystray `
+            --hidden-import sqlite3 `
+            inkstain_agent/main.py
+
+      - name: Zip Windows exe
+        run: |
+          cd inkstain-desktop/dist
+          Compress-Archive -Path "Inkstain Trail.exe" -DestinationPath "Inkstain-Trail-Windows.zip"
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Inkstain-Trail-Windows
+          path: inkstain-desktop/dist/Inkstain-Trail-Windows.zip
+
+  release:
+    needs: [build-mac, build-windows]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: write
+    steps:
+      - name: Download Mac artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: Inkstain-Trail-Mac
+
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: Inkstain-Trail-Windows
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            Inkstain-Trail-Mac.zip
+            Inkstain-Trail-Windows.zip
+          body: |
+            ## Inkstain Trail
+
+            AI Provenance for Authors. The written word will prevail.
+
+            ### Install — Mac
+            1. Download `Inkstain-Trail-Mac.zip`
+            2. Unzip
+            3. Drag `Inkstain Trail.app` to your Applications folder
+            4. Double-click to open
+            5. Look for the **I** icon in your menubar
+
+            ### Install — Windows
+            1. Download `Inkstain-Trail-Windows.zip`
+            2. Unzip
+            3. Double-click `Inkstain Trail.exe`
+            4. Look for the **I** icon in your system tray
+
+            ### What it does
+            - Watches your clipboard system-wide
+            - Logs AI copy events from any app — Claude desktop, ChatGPT, Replit, Cursor, any browser
+            - Tracks app switching patterns between AI tools and writing apps
+            - Exports your Trail as JSON for certificate generation at inkstain.ai/trail
+
+            ### What it never does
+            - Read your writing
+            - Store clipboard content
+            - Send anything to a server
+            - Work against you
