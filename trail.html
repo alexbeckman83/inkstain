@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Generate Your Trail — Inkstain</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=EB+Garamond:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --ink: #1B2A3B;
+      --ink-dark: #0f1e2d;
+      --parchment: #f5f2eb;
+      --parch-dk: #ece8dc;
+      --amber: #c8956b;
+      --muted: rgba(27,42,59,0.32);
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--parchment);
+      color: var(--ink);
+      font-family: 'EB Garamond', Georgia, serif;
+      font-size: 18px;
+      line-height: 1.7;
+      min-height: 100vh;
+    }
+
+    nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1.6rem 4rem;
+      border-bottom: 0.5px solid rgba(27,42,59,0.12);
+    }
+    .nav-logo img { height: 44px; width: auto; }
+    .nav-logo-text {
+      font-family: 'Playfair Display', serif;
+      font-weight: 700;
+      font-size: 22px;
+      color: var(--ink);
+      text-decoration: none;
+    }
+    .nav-logo-text span { color: var(--amber); }
+    .nav-back {
+      font-size: 14px;
+      color: var(--muted);
+      text-decoration: none;
+      letter-spacing: 0.3px;
+      transition: color 0.2s;
+    }
+    .nav-back:hover { color: var(--ink); }
+
+    .page {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 5rem 2rem 6rem;
+    }
+
+    .page-eyebrow {
+      font-size: 11px;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      color: var(--amber);
+      margin-bottom: 1.5rem;
+    }
+
+    .page-title {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: clamp(36px, 5vw, 52px);
+      font-weight: 700;
+      line-height: 1.1;
+      letter-spacing: -1px;
+      margin-bottom: 1rem;
+    }
+
+    .page-sub {
+      font-size: 18px;
+      color: var(--muted);
+      margin-bottom: 3.5rem;
+      max-width: 520px;
+    }
+
+    /* ── PRIVACY NOTICE — first thing they see ── */
+    .privacy-notice {
+      background: var(--ink);
+      color: var(--parchment);
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 2.5rem;
+      display: flex;
+      gap: 1rem;
+      align-items: flex-start;
+    }
+    .privacy-icon {
+      font-size: 20px;
+      margin-top: 2px;
+      flex-shrink: 0;
+    }
+    .privacy-text {
+      font-size: 15px;
+      line-height: 1.6;
+      color: rgba(245,242,235,0.85);
+    }
+    .privacy-text strong {
+      color: var(--parchment);
+      font-weight: 500;
+    }
+
+    /* ── FORM ── */
+    .form-section {
+      margin-bottom: 2rem;
+    }
+
+    label {
+      display: block;
+      font-size: 12px;
+      letter-spacing: 2.5px;
+      text-transform: uppercase;
+      color: var(--ink);
+      opacity: 0.6;
+      margin-bottom: 0.5rem;
+    }
+
+    input[type="text"] {
+      width: 100%;
+      padding: 13px 16px;
+      font-family: 'EB Garamond', serif;
+      font-size: 18px;
+      border: 0.5px solid rgba(27,42,59,0.3);
+      background: var(--parchment);
+      color: var(--ink);
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    input[type="text"]:focus {
+      border-color: rgba(27,42,59,0.7);
+    }
+    input[type="text"]::placeholder {
+      color: rgba(27,42,59,0.28);
+    }
+
+    /* ── UPLOAD ZONE ── */
+    .upload-zone {
+      border: 1px dashed rgba(27,42,59,0.25);
+      padding: 3rem 2rem;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      position: relative;
+      background: var(--parchment);
+    }
+    .upload-zone:hover, .upload-zone.drag-over {
+      border-color: var(--amber);
+      background: var(--parch-dk);
+    }
+    .upload-zone input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+      width: 100%;
+      height: 100%;
+    }
+    .upload-icon {
+      font-size: 32px;
+      margin-bottom: 0.75rem;
+      opacity: 0.4;
+    }
+    .upload-label {
+      font-size: 17px;
+      color: var(--ink);
+      opacity: 0.7;
+      margin-bottom: 0.25rem;
+    }
+    .upload-hint {
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .upload-filename {
+      display: none;
+      font-size: 15px;
+      color: var(--amber);
+      font-style: italic;
+      margin-top: 0.75rem;
+    }
+
+    /* ── WHAT WE READ ── */
+    .what-we-read {
+      background: var(--parch-dk);
+      border: 0.5px solid rgba(27,42,59,0.08);
+      padding: 1.5rem;
+      margin-top: 1rem;
+    }
+    .what-we-read-title {
+      font-size: 11px;
+      letter-spacing: 2.5px;
+      text-transform: uppercase;
+      color: var(--amber);
+      margin-bottom: 1rem;
+    }
+    .what-list {
+      list-style: none;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.5rem 2rem;
+    }
+    .what-list li {
+      font-size: 15px;
+      color: rgba(27,42,59,0.7);
+      padding-left: 1.25rem;
+      position: relative;
+    }
+    .what-list li::before {
+      content: '✓';
+      position: absolute;
+      left: 0;
+      color: var(--amber);
+      font-size: 13px;
+    }
+    .what-list li.never {
+      color: rgba(27,42,59,0.38);
+    }
+    .what-list li.never::before {
+      content: '✕';
+      color: rgba(27,42,59,0.25);
+    }
+
+    /* ── DISCLOSURE LEVEL ── */
+    .disclosure-options {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+      margin-top: 0.5rem;
+    }
+    .disclosure-option {
+      border: 0.5px solid rgba(27,42,59,0.2);
+      padding: 1.25rem 1rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      position: relative;
+    }
+    .disclosure-option input {
+      position: absolute;
+      opacity: 0;
+    }
+    .disclosure-option.selected {
+      border-color: var(--ink);
+      background: var(--parch-dk);
+    }
+    .disclosure-option-title {
+      font-family: 'Playfair Display', serif;
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--ink);
+      margin-bottom: 0.4rem;
+    }
+    .disclosure-option-desc {
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.4;
+    }
+
+    /* ── SUBMIT ── */
+    .submit-area {
+      margin-top: 2.5rem;
+    }
+
+    .btn-generate {
+      width: 100%;
+      background: var(--ink);
+      color: var(--parchment);
+      font-family: 'EB Garamond', serif;
+      font-size: 19px;
+      padding: 16px 36px;
+      border: none;
+      cursor: pointer;
+      letter-spacing: 0.5px;
+      transition: background 0.2s;
+    }
+    .btn-generate:hover { background: var(--ink-dark); }
+    .btn-generate:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    /* ── PROGRESS ── */
+    .progress {
+      display: none;
+      margin-top: 1.5rem;
+      text-align: center;
+    }
+    .progress-bar-outer {
+      height: 2px;
+      background: rgba(27,42,59,0.1);
+      margin-bottom: 1rem;
+    }
+    .progress-bar-inner {
+      height: 2px;
+      background: var(--amber);
+      width: 0%;
+      transition: width 0.4s ease;
+    }
+    .progress-text {
+      font-size: 15px;
+      color: var(--muted);
+      font-style: italic;
+    }
+
+    /* ── ERROR ── */
+    .error-msg {
+      display: none;
+      background: #fdf0ec;
+      border: 0.5px solid rgba(200,80,50,0.2);
+      padding: 1rem 1.25rem;
+      margin-top: 1rem;
+      font-size: 15px;
+      color: #8b3020;
+    }
+
+    /* ── RESULT ── */
+    .result {
+      display: none;
+      margin-top: 2rem;
+      padding: 2rem;
+      background: var(--ink);
+      text-align: center;
+    }
+    .result-title {
+      font-family: 'Playfair Display', serif;
+      font-size: 22px;
+      font-style: italic;
+      color: var(--parchment);
+      margin-bottom: 0.75rem;
+    }
+    .result-sub {
+      font-size: 15px;
+      color: rgba(245,242,235,0.6);
+      margin-bottom: 1.5rem;
+    }
+    .btn-download {
+      display: inline-block;
+      background: var(--amber);
+      color: var(--parchment);
+      font-family: 'EB Garamond', serif;
+      font-size: 17px;
+      padding: 13px 32px;
+      text-decoration: none;
+      cursor: pointer;
+      border: none;
+      letter-spacing: 0.5px;
+      transition: opacity 0.2s;
+    }
+    .btn-download:hover { opacity: 0.88; }
+    .result-note {
+      font-size: 13px;
+      color: rgba(245,242,235,0.4);
+      font-style: italic;
+      margin-top: 1rem;
+    }
+
+    /* ── FOOTER LINE ── */
+    .page-footer {
+      margin-top: 4rem;
+      padding-top: 2rem;
+      border-top: 0.5px solid rgba(27,42,59,0.1);
+      font-size: 14px;
+      color: var(--muted);
+      font-style: italic;
+      text-align: center;
+    }
+
+    @media (max-width: 600px) {
+      nav { padding: 1.2rem 1.5rem; }
+      .page { padding: 3rem 1.5rem 4rem; }
+      .what-list { grid-template-columns: 1fr; }
+      .disclosure-options { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <nav>
+    <a href="/" class="nav-logo-text">Ink<span>stain</span></a>
+    <a href="/" class="nav-back">← back to inkstain.ai</a>
+  </nav>
+
+  <div class="page">
+
+    <p class="page-eyebrow">Your authorship record</p>
+    <h1 class="page-title">Generate your Trail.</h1>
+    <p class="page-sub">Upload your manuscript and we'll read its document history and produce a signed certificate of authorship. Takes about 30 seconds.</p>
+
+    <!-- PRIVACY NOTICE — first thing, always -->
+    <div class="privacy-notice">
+      <span class="privacy-icon">✦</span>
+      <p class="privacy-text">
+        <strong>Inkstain never reads your writing.</strong> We read document metadata only — creation date, edit time, revision count, word count progression. Your manuscript text never leaves your computer and is never stored on our servers.
+      </p>
+    </div>
+
+    <form id="trail-form" onsubmit="generateTrail(event)">
+
+      <!-- Author name -->
+      <div class="form-section">
+        <label for="author-name">Your name</label>
+        <input type="text" id="author-name" placeholder="As it should appear on the certificate" required>
+      </div>
+
+      <!-- Manuscript title -->
+      <div class="form-section">
+        <label for="manuscript-title">Manuscript title</label>
+        <input type="text" id="manuscript-title" placeholder="Working title is fine" required>
+      </div>
+
+      <!-- File upload -->
+      <div class="form-section">
+        <label>Your manuscript</label>
+        <div class="upload-zone" id="upload-zone">
+          <input type="file" id="file-input" accept=".docx,.doc" onchange="handleFileSelect(this)">
+          <div class="upload-icon">📄</div>
+          <p class="upload-label">Drop your Word document here</p>
+          <p class="upload-hint">.docx or .doc — your text is never read or stored</p>
+          <p class="upload-filename" id="upload-filename"></p>
+        </div>
+
+        <div class="what-we-read">
+          <p class="what-we-read-title">What we read from your document</p>
+          <ul class="what-list">
+            <li>Creation date</li>
+            <li>Total editing time</li>
+            <li>Last modified date</li>
+            <li>Revision count</li>
+            <li>Word count</li>
+            <li>Author field</li>
+            <li class="never">Your manuscript text</li>
+            <li class="never">Your document content</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Disclosure level -->
+      <div class="form-section">
+        <label>Disclosure level</label>
+        <div class="disclosure-options">
+          <div class="disclosure-option selected" onclick="selectDisclosure(this, 'summary')">
+            <input type="radio" name="disclosure" value="summary" checked>
+            <div class="disclosure-option-title">Summary</div>
+            <div class="disclosure-option-desc">Key stats only. Right for most submissions.</div>
+          </div>
+          <div class="disclosure-option" onclick="selectDisclosure(this, 'standard')">
+            <input type="radio" name="disclosure" value="standard">
+            <div class="disclosure-option-title">Standard</div>
+            <div class="disclosure-option-desc">Full document history. For publisher requests.</div>
+          </div>
+          <div class="disclosure-option" onclick="selectDisclosure(this, 'full')">
+            <input type="radio" name="disclosure" value="full">
+            <div class="disclosure-option-title">Full</div>
+            <div class="disclosure-option-desc">Everything captured. For dispute resolution.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Submit -->
+      <div class="submit-area">
+        <button type="submit" class="btn-generate" id="generate-btn">
+          Generate my Trail certificate
+        </button>
+      </div>
+
+    </form>
+
+    <!-- Progress -->
+    <div class="progress" id="progress">
+      <div class="progress-bar-outer">
+        <div class="progress-bar-inner" id="progress-bar"></div>
+      </div>
+      <p class="progress-text" id="progress-text">Reading document history...</p>
+    </div>
+
+    <!-- Error -->
+    <div class="error-msg" id="error-msg"></div>
+
+    <!-- Result -->
+    <div class="result" id="result">
+      <p class="result-title">Your Trail is ready.</p>
+      <p class="result-sub" id="result-sub"></p>
+      <a class="btn-download" id="download-btn" href="#" download>
+        Download certificate PDF
+      </a>
+      <p class="result-note">This certificate is yours. Share it when you choose, with whom you choose.</p>
+    </div>
+
+    <p class="page-footer">The written word will prevail.</p>
+
+  </div>
+
+  <script>
+    // Drag and drop
+    const zone = document.getElementById('upload-zone');
+    zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+    zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+    zone.addEventListener('drop', e => {
+      e.preventDefault();
+      zone.classList.remove('drag-over');
+      const file = e.dataTransfer.files[0];
+      if (file) {
+        document.getElementById('file-input').files = e.dataTransfer.files;
+        handleFileSelect({ files: [file] });
+      }
+    });
+
+    function handleFileSelect(input) {
+      const file = input.files[0];
+      if (!file) return;
+      const fn = document.getElementById('upload-filename');
+      fn.textContent = file.name;
+      fn.style.display = 'block';
+      document.querySelector('.upload-label').textContent = 'File selected';
+    }
+
+    function selectDisclosure(el, value) {
+      document.querySelectorAll('.disclosure-option').forEach(o => o.classList.remove('selected'));
+      el.classList.add('selected');
+      el.querySelector('input').checked = true;
+    }
+
+    function setProgress(pct, text) {
+      document.getElementById('progress-bar').style.width = pct + '%';
+      document.getElementById('progress-text').textContent = text;
+    }
+
+    async function generateTrail(e) {
+      e.preventDefault();
+
+      const author = document.getElementById('author-name').value.trim();
+      const title = document.getElementById('manuscript-title').value.trim();
+      const fileInput = document.getElementById('file-input');
+      const disclosure = document.querySelector('input[name="disclosure"]:checked').value;
+
+      if (!fileInput.files[0]) {
+        showError('Please upload your manuscript document.');
+        return;
+      }
+
+      // Show progress
+      document.getElementById('generate-btn').disabled = true;
+      document.getElementById('progress').style.display = 'block';
+      document.getElementById('error-msg').style.display = 'none';
+      document.getElementById('result').style.display = 'none';
+
+      setProgress(20, 'Reading document history...');
+
+      const formData = new FormData();
+      formData.append('file', fileInput.files[0]);
+      formData.append('author', author);
+      formData.append('title', title);
+      formData.append('disclosure', disclosure);
+
+      try {
+        setProgress(50, 'Extracting metadata...');
+
+        const response = await fetch('/api/trail', {
+          method: 'POST',
+          body: formData
+        });
+
+        setProgress(80, 'Generating certificate...');
+
+        if (!response.ok) {
+          const err = await response.json();
+          throw new Error(err.error || 'Something went wrong. Please try again.');
+        }
+
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+
+        setProgress(100, 'Certificate ready.');
+
+        setTimeout(() => {
+          document.getElementById('progress').style.display = 'none';
+          document.getElementById('generate-btn').disabled = false;
+
+          const result = document.getElementById('result');
+          const dlBtn = document.getElementById('download-btn');
+          const sub = document.getElementById('result-sub');
+
+          dlBtn.href = url;
+          dlBtn.download = `inkstain-trail-${title.replace(/\s+/g, '-').toLowerCase()}.pdf`;
+          sub.textContent = `Trail certificate for "${title}" by ${author}`;
+          result.style.display = 'block';
+          result.scrollIntoView({ behavior: 'smooth' });
+        }, 600);
+
+      } catch (err) {
+        document.getElementById('progress').style.display = 'none';
+        document.getElementById('generate-btn').disabled = false;
+        showError(err.message);
+      }
+    }
+
+    function showError(msg) {
+      const el = document.getElementById('error-msg');
+      el.textContent = msg;
+      el.style.display = 'block';
+    }
+  </script>
+
+</body>
+</html>

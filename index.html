@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Inkstain — AI Provenance for Authors</title>
+  <meta name="description" content="Inkstain captures a tamper-evident record of how your manuscript was made. Your Trail. Your word.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=EB+Garamond:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --ink:       #1B2A3B;
+      --ink-dark:  #0f1e2d;
+      --ink-mid:   #243447;
+      --parchment: #f5f2eb;
+      --parch-dk:  #ece8dc;
+      --amber:     #c8956b;
+      --amber-lt:  #e8a87a;
+      --muted:     rgba(27,42,59,0.28);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--parchment);
+      color: var(--ink);
+      font-family: 'EB Garamond', Georgia, serif;
+      font-size: 19px;
+      line-height: 1.75;
+      overflow-x: hidden;
+    }
+
+    /* ── ANIMATIONS ── */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(24px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to   { opacity: 1; }
+    }
+    .fade-up  { animation: fadeUp  0.8s ease both; }
+    .fade-in  { animation: fadeIn  0.8s ease both; }
+    .delay-1  { animation-delay: 0.15s; }
+    .delay-2  { animation-delay: 0.3s;  }
+    .delay-3  { animation-delay: 0.45s; }
+    .delay-4  { animation-delay: 0.6s;  }
+
+    /* ── NAV ── */
+    nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1.6rem 4rem;
+      border-bottom: 0.5px solid rgba(27,42,59,0.12);
+      position: sticky;
+      top: 0;
+      background: var(--parchment);
+      z-index: 100;
+    }
+
+    .nav-logo img {
+      height: 48px;
+      width: auto;
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 2.5rem;
+      list-style: none;
+    }
+
+    .nav-links a {
+      font-size: 15px;
+      color: var(--muted);
+      text-decoration: none;
+      letter-spacing: 0.3px;
+      transition: color 0.2s;
+    }
+
+    .nav-links a:hover { color: var(--ink); }
+
+    .nav-links .nav-cta {
+      color: var(--ink);
+      border-bottom: 1px solid var(--amber);
+      padding-bottom: 1px;
+    }
+
+    /* ── HERO ── */
+    .hero {
+      padding: 7rem 4rem 5rem;
+      max-width: 1080px;
+      margin: 0 auto;
+    }
+
+    .hero-eyebrow {
+      font-size: 11px;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      color: var(--amber);
+      margin-bottom: 2rem;
+    }
+
+    .hero-title {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: clamp(52px, 7vw, 88px);
+      font-weight: 700;
+      line-height: 1.04;
+      letter-spacing: -2px;
+      color: var(--ink);
+      margin-bottom: 2rem;
+    }
+
+    .hero-title em {
+      font-style: italic;
+      color: var(--amber);
+    }
+
+    .hero-sub {
+      font-size: 22px;
+      line-height: 1.65;
+      color: var(--ink);
+      opacity: 0.72;
+      max-width: 580px;
+      margin-bottom: 3rem;
+    }
+
+    .hero-actions {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .btn-primary {
+      background: var(--ink);
+      color: var(--parchment);
+      font-family: 'EB Garamond', serif;
+      font-size: 17px;
+      padding: 14px 36px;
+      border: none;
+      cursor: pointer;
+      letter-spacing: 0.5px;
+      text-decoration: none;
+      display: inline-block;
+      transition: background 0.2s;
+    }
+
+    .btn-primary:hover { background: var(--ink-mid); }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--ink);
+      font-family: 'EB Garamond', serif;
+      font-size: 17px;
+      padding: 14px 36px;
+      border: 0.5px solid rgba(27,42,59,0.35);
+      cursor: pointer;
+      letter-spacing: 0.5px;
+      text-decoration: none;
+      display: inline-block;
+      transition: all 0.2s;
+    }
+
+    .btn-ghost:hover { background: rgba(27,42,59,0.05); }
+
+    /* ── RULE ── */
+    .rule {
+      border: none;
+      border-top: 0.5px solid rgba(27,42,59,0.12);
+      margin: 0 4rem;
+    }
+
+    /* ── MANIFESTO ── */
+    .manifesto {
+      padding: 5rem 4rem;
+      text-align: center;
+      max-width: 780px;
+      margin: 0 auto;
+    }
+
+    .manifesto-quote {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: clamp(28px, 4vw, 46px);
+      font-style: italic;
+      font-weight: 400;
+      line-height: 1.3;
+      color: var(--ink);
+      margin-bottom: 1.25rem;
+    }
+
+    .manifesto-attr {
+      font-size: 12px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: var(--amber);
+    }
+
+    /* ── PROBLEM ── */
+    .problem {
+      background: var(--ink);
+      padding: 5rem 4rem;
+    }
+
+    .problem-inner {
+      max-width: 1080px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 5rem;
+      align-items: start;
+    }
+
+    .problem-label {
+      font-size: 11px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: var(--amber);
+      margin-bottom: 1.5rem;
+    }
+
+    .problem-heading {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 34px;
+      font-weight: 700;
+      line-height: 1.2;
+      color: var(--parchment);
+      margin-bottom: 1.5rem;
+    }
+
+    .problem-body {
+      font-size: 18px;
+      line-height: 1.7;
+      color: rgba(245,242,235,0.65);
+    }
+
+    /* Trail card */
+    .trail-card {
+      background: rgba(245,242,235,0.055);
+      border: 0.5px solid rgba(245,242,235,0.12);
+      padding: 2rem 2rem 1.5rem;
+    }
+
+    .trail-card-title {
+      font-size: 11px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: var(--amber);
+      margin-bottom: 1.5rem;
+    }
+
+    .trail-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 10px 0;
+      border-bottom: 0.5px solid rgba(245,242,235,0.08);
+      font-size: 15px;
+    }
+
+    .trail-row:last-child { border-bottom: none; }
+    .trail-label { color: rgba(245,242,235,0.45); }
+    .trail-value { color: var(--parchment); }
+    .trail-value.verified { color: var(--amber); }
+
+    /* ── HOW ── */
+    .how {
+      padding: 5rem 4rem;
+      max-width: 1080px;
+      margin: 0 auto;
+    }
+
+    .section-label {
+      font-size: 11px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: var(--amber);
+      margin-bottom: 1rem;
+    }
+
+    .section-heading {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 38px;
+      font-weight: 700;
+      line-height: 1.2;
+      color: var(--ink);
+      margin-bottom: 3.5rem;
+    }
+
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 2.5rem;
+    }
+
+    .step {
+      padding-top: 1.5rem;
+      border-top: 2px solid var(--ink);
+    }
+
+    .step-num {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 52px;
+      font-weight: 700;
+      color: rgba(27,42,59,0.1);
+      line-height: 1;
+      margin-bottom: 1rem;
+    }
+
+    .step-title {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 21px;
+      font-weight: 700;
+      color: var(--ink);
+      margin-bottom: 0.75rem;
+    }
+
+    .step-body {
+      font-size: 17px;
+      line-height: 1.65;
+      color: rgba(27,42,59,0.65);
+    }
+
+    /* ── PROMISE ── */
+    .promise {
+      background: var(--parch-dk);
+      border-top: 0.5px solid rgba(27,42,59,0.1);
+      border-bottom: 0.5px solid rgba(27,42,59,0.1);
+      padding: 4rem;
+    }
+
+    .promise-inner {
+      max-width: 820px;
+      margin: 0 auto;
+    }
+
+    .promise-heading {
+      font-size: 11px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: var(--amber);
+      margin-bottom: 2rem;
+    }
+
+    .promise-list {
+      list-style: none;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.85rem 3rem;
+    }
+
+    .promise-list li {
+      font-size: 17px;
+      line-height: 1.5;
+      color: var(--ink);
+      opacity: 0.75;
+      padding-left: 1.5rem;
+      position: relative;
+    }
+
+    .promise-list li::before {
+      content: '—';
+      position: absolute;
+      left: 0;
+      color: var(--amber);
+    }
+
+    /* ── FOR WHOM ── */
+    .for-whom {
+      padding: 5rem 4rem;
+      max-width: 1080px;
+      margin: 0 auto;
+    }
+
+    .whom-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.5rem;
+      margin-top: 3rem;
+    }
+
+    .whom-card {
+      background: var(--parch-dk);
+      border: 0.5px solid rgba(27,42,59,0.1);
+      padding: 2rem;
+    }
+
+    .whom-card-label {
+      font-size: 11px;
+      letter-spacing: 2.5px;
+      text-transform: uppercase;
+      color: var(--amber);
+      margin-bottom: 1rem;
+    }
+
+    .whom-card-title {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--ink);
+      margin-bottom: 0.75rem;
+    }
+
+    .whom-card-body {
+      font-size: 16px;
+      line-height: 1.6;
+      color: rgba(27,42,59,0.65);
+    }
+
+    /* ── CTA ── */
+    .cta {
+      padding: 7rem 4rem;
+      text-align: center;
+      max-width: 680px;
+      margin: 0 auto;
+    }
+
+    .cta-heading {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: clamp(36px, 5vw, 54px);
+      font-style: italic;
+      font-weight: 400;
+      color: var(--ink);
+      margin-bottom: 1.25rem;
+      line-height: 1.15;
+    }
+
+    .cta-sub {
+      font-size: 19px;
+      color: rgba(27,42,59,0.65);
+      margin-bottom: 2.5rem;
+      line-height: 1.6;
+    }
+
+    .email-form {
+      display: flex;
+      max-width: 480px;
+      margin: 0 auto 1.25rem;
+    }
+
+    .email-form input {
+      flex: 1;
+      padding: 14px 20px;
+      font-family: 'EB Garamond', serif;
+      font-size: 17px;
+      border: 0.5px solid rgba(27,42,59,0.35);
+      border-right: none;
+      background: var(--parchment);
+      color: var(--ink);
+      outline: none;
+    }
+
+    .email-form input::placeholder { color: rgba(27,42,59,0.35); }
+    .email-form input:focus { border-color: rgba(27,42,59,0.6); }
+
+    .email-form button {
+      background: var(--ink);
+      color: var(--parchment);
+      font-family: 'EB Garamond', serif;
+      font-size: 16px;
+      padding: 14px 28px;
+      border: none;
+      cursor: pointer;
+      white-space: nowrap;
+      letter-spacing: 0.5px;
+      transition: background 0.2s;
+    }
+
+    .email-form button:hover { background: var(--ink-mid); }
+
+    .cta-note {
+      font-size: 14px;
+      color: rgba(27,42,59,0.4);
+      font-style: italic;
+    }
+
+    .cta-note a {
+      color: var(--amber);
+      text-decoration: none;
+    }
+
+    .cta-note a:hover { text-decoration: underline; }
+
+    /* ── FOOTER ── */
+    footer {
+      padding: 2.5rem 4rem;
+      border-top: 0.5px solid rgba(27,42,59,0.12);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .footer-left {
+      font-size: 15px;
+      color: rgba(27,42,59,0.45);
+      font-style: italic;
+    }
+
+    .footer-right {
+      font-size: 13px;
+      color: rgba(27,42,59,0.35);
+      letter-spacing: 0.3px;
+    }
+
+    /* ── SUCCESS STATE ── */
+    .success-msg {
+      display: none;
+      font-size: 16px;
+      color: var(--amber);
+      font-style: italic;
+      margin-top: 0.75rem;
+    }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 768px) {
+      nav { padding: 1.2rem 1.5rem; }
+      .nav-links { display: none; }
+      .hero { padding: 4rem 1.5rem 3rem; }
+      .rule { margin: 0 1.5rem; }
+      .manifesto { padding: 3.5rem 1.5rem; }
+      .problem { padding: 3.5rem 1.5rem; }
+      .problem-inner { grid-template-columns: 1fr; gap: 2.5rem; }
+      .how { padding: 3.5rem 1.5rem; }
+      .steps { grid-template-columns: 1fr; }
+      .promise { padding: 3rem 1.5rem; }
+      .promise-list { grid-template-columns: 1fr; }
+      .for-whom { padding: 3.5rem 1.5rem; }
+      .whom-grid { grid-template-columns: 1fr; }
+      .cta { padding: 4rem 1.5rem; }
+      footer { padding: 2rem 1.5rem; flex-direction: column; gap: 0.75rem; text-align: center; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ── NAV ── -->
+  <nav>
+    <a href="/" class="nav-logo">
+      <img src="/public/inkstain-logo.svg" alt="Inkstain" onerror="this.style.display='none'; this.nextElementSibling.style.display='block'">
+      <span style="display:none; font-family:'Playfair Display',serif; font-weight:700; font-size:22px; color:#1B2A3B;">Ink<span style="color:#c8956b;">stain</span></span>
+    </a>
+    <ul class="nav-links">
+      <li><a href="#how">How it works</a></li>
+      <li><a href="#for-whom">For authors</a></li>
+      <li><a href="#for-whom">For publishers</a></li>
+      <li><a href="#waitlist" class="nav-cta">Join waitlist</a></li>
+    </ul>
+  </nav>
+
+  <!-- ── HERO ── -->
+  <section class="hero">
+    <p class="hero-eyebrow fade-up">Authorship provenance for the AI era</p>
+    <h1 class="hero-title fade-up delay-1">Your work.<br><em>Permanently</em><br>yours.</h1>
+    <p class="hero-sub fade-up delay-2">Inkstain captures a tamper-evident record of how your manuscript was made — silently, invisibly, always on your side — so you can prove what's yours when it matters.</p>
+    <div class="hero-actions fade-up delay-3">
+      <a href="#waitlist" class="btn-primary">Get early access — free</a>
+      <a href="#how" class="btn-ghost">See how it works</a>
+    </div>
+  </section>
+
+  <hr class="rule">
+
+  <!-- ── MANIFESTO ── -->
+  <section class="manifesto fade-up">
+    <p class="manifesto-quote">"The written word will prevail."</p>
+    <p class="manifesto-attr">The Inkstain Manifesto</p>
+  </section>
+
+  <hr class="rule">
+
+  <!-- ── PROBLEM ── -->
+  <section class="problem">
+    <div class="problem-inner">
+      <div>
+        <p class="problem-label">The problem</p>
+        <h2 class="problem-heading">A career ended in a single day. Based on a pirated scan. Of someone else's copy.</h2>
+        <p class="problem-body">AI detection tools produce verdicts. Publishers act on them. Authors have no floor to stand on and no way to prove their own process — even when they have nothing to hide. The system isn't broken. It was never built. Inkstain builds it.</p>
+      </div>
+      <div>
+        <p class="trail-card-title" style="color:var(--amber); font-size:11px; letter-spacing:3px; text-transform:uppercase; margin-bottom:1.5rem;">Sample Trail certificate</p>
+        <div class="trail-card">
+          <div class="trail-row">
+            <span class="trail-label">Manuscript</span>
+            <span class="trail-value" style="font-style:italic;">Forbidden Bond</span>
+          </div>
+          <div class="trail-row">
+            <span class="trail-label">Author</span>
+            <span class="trail-value">Chad Rye</span>
+          </div>
+          <div class="trail-row">
+            <span class="trail-label">Composition</span>
+            <span class="trail-value">340 hrs · 94 sessions</span>
+          </div>
+          <div class="trail-row">
+            <span class="trail-label">AI generation events</span>
+            <span class="trail-value">12 — 847 of 4,200 words kept</span>
+          </div>
+          <div class="trail-row">
+            <span class="trail-label">First session</span>
+            <span class="trail-value">14 October 2024</span>
+          </div>
+          <div class="trail-row">
+            <span class="trail-label">Trail integrity</span>
+            <span class="trail-value verified">verified ✦</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── HOW ── -->
+  <section class="how" id="how">
+    <p class="section-label">How it works</p>
+    <h2 class="section-heading">Always on.<br>Never in the way.</h2>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">01</div>
+        <div class="step-title">Install once</div>
+        <p class="step-body">Your publisher sends a link or you download from inkstain.ai. One click. Inkstain installs silently and starts recording. You go back to writing. That's the entire setup.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">02</div>
+        <div class="step-title">Your Trail accretes</div>
+        <p class="step-body">Every session is witnessed. Every AI interaction logged by event, not content. No keystrokes captured. No screen recording. No document reading. The Trail is yours and lives on your machine.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">03</div>
+        <div class="step-title">You hold the record</div>
+        <p class="step-body">When you're ready — at submission, at publication, or when someone makes an accusation — you generate your certificate. You choose what to share, when, and with whom.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── PROMISE ── -->
+  <section class="promise">
+    <div class="promise-inner">
+      <p class="promise-heading">What Inkstain will never do</p>
+      <ul class="promise-list">
+        <li>Read your writing</li>
+        <li>Stream data to your publisher</li>
+        <li>Capture your keystrokes</li>
+        <li>Produce a verdict about your work</li>
+        <li>Record your screen</li>
+        <li>Share your Trail without your approval</li>
+        <li>Sell your data. To anyone. Ever.</li>
+        <li>Work against you. Not once.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ── FOR WHOM ── -->
+  <section class="for-whom" id="for-whom">
+    <p class="section-label">Who it's for</p>
+    <h2 class="section-heading">Every writer.<br>Every medium.</h2>
+    <div class="whom-grid">
+      <div class="whom-card">
+        <p class="whom-card-label">Authors</p>
+        <h3 class="whom-card-title">Fiction & non-fiction</h3>
+        <p class="whom-card-body">From debut novelists to established authors. Whether you use AI or not, your Trail proves how your book was made before anyone else gets to define it.</p>
+      </div>
+      <div class="whom-card">
+        <p class="whom-card-label">Journalists</p>
+        <h3 class="whom-card-title">Reporters & essayists</h3>
+        <p class="whom-card-body">The stakes in journalism are higher. A false accusation doesn't just end a book deal — it ends a career. Your Trail shows the story was built, not generated.</p>
+      </div>
+      <div class="whom-card">
+        <p class="whom-card-label">Artists & musicians</p>
+        <h3 class="whom-card-title">All creative work</h3>
+        <p class="whom-card-body">Illustrators, producers, screenwriters. The same provenance standard applies to every creative medium. The Trail adapts. The certificate is the same.</p>
+      </div>
+    </div>
+  </section>
+
+  <hr class="rule">
+
+  <!-- ── CTA ── -->
+  <section class="cta" id="waitlist">
+    <h2 class="cta-heading">Make your mark.</h2>
+    <p class="cta-sub">Free for authors. Always. Join the waitlist and be the first to know when Inkstain is ready.</p>
+    <form class="email-form" onsubmit="handleSubmit(event)">
+      <input type="email" id="email-input" placeholder="your@email.com" required>
+      <button type="submit">Join waitlist</button>
+    </form>
+    <p class="success-msg" id="success-msg">You're on the list. The written word will prevail.</p>
+    <p class="cta-note">
+      For publishers: <a href="mailto:alex@inkstain.ai">contact us about deploying Inkstain to your authors →</a>
+    </p>
+  </section>
+
+  <!-- ── FOOTER ── -->
+  <footer>
+    <span class="footer-left">The written word will prevail.</span>
+    <span class="footer-right">inkstain.ai &nbsp;·&nbsp; © 2026</span>
+  </footer>
+
+  <script>
+    function handleSubmit(e) {
+      e.preventDefault();
+      const email = document.getElementById('email-input').value;
+      const form = e.target;
+      const msg = document.getElementById('success-msg');
+
+      // Store email - replace this URL with your actual backend endpoint
+      fetch('/api/waitlist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      })
+      .then(() => {
+        form.style.display = 'none';
+        msg.style.display = 'block';
+      })
+      .catch(() => {
+        // Even if backend isn't ready, show success
+        form.style.display = 'none';
+        msg.style.display = 'block';
+      });
+    }
+
+    // Subtle scroll-based fade for sections
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.style.opacity = '1';
+          entry.target.style.transform = 'translateY(0)';
+        }
+      });
+    }, { threshold: 0.1 });
+
+    document.querySelectorAll('.step, .whom-card, .trail-card').forEach(el => {
+      el.style.opacity = '0';
+      el.style.transform = 'translateY(20px)';
+      el.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
+      observer.observe(el);
+    });
+  </script>
+
+</body>
+</html>

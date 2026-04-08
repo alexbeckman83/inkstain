@@ -4,8 +4,8 @@
   "description": "AI Provenance for Authors",
   "main": "server.js",
   "scripts": {
-    "start": "python3 -m pip install python-docx reportlab --quiet && node server.js",
-    "setup": "python3 -m pip install python-docx reportlab"
+    "start": "pip3 install python-docx reportlab --quiet && node server.js",
+    "setup": "pip3 install python-docx reportlab"
   },
   "engines": {
     "node": ">=18.0.0"
