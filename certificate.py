@@ -156,9 +156,13 @@ def generate_certificate_pdf(author, title, metadata, disclosure_level="summary"
     c.drawCentredString(W/2, H - 0.85*inch, "C E R T I F I C A T E   O F   A U T H O R S H I P")
 
     # Wordmark
+    ink_x = W/2 - 42
     c.setFillColorRGB(*PARCHMENT)
     c.setFont("Helvetica-Bold", 28)
-    c.drawCentredString(W/2, H - 1.35*inch, "INKSTAIN")
+    c.drawString(ink_x, H - 1.35*inch, "Ink")
+    c.setFillColorRGB(200/255, 149/255, 107/255)
+    c.setFont("Helvetica-BoldOblique", 28)
+    c.drawString(ink_x + 38, H - 1.35*inch, "stain")
 
     # Decorative rule
     c.setStrokeColorRGB(*AMBER)
