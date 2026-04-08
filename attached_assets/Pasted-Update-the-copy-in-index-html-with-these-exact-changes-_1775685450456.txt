@@ -1,0 +1,24 @@
+Update the copy in index.html with these exact changes:
+1. Find the "Install once" section (step 01) and replace the description with:
+Download the Inkstain Trail app from inkstain.ai. Drag it to your Applications folder. Open it. A small icon appears in your menubar. That's it — you're recording. No account. No configuration. No Terminal.
+2. Find the "Your Trail accretes" section (step 02) and replace the description with:
+Every session is witnessed. AI copy events are logged by size and source — never by content. App switching patterns are recorded: how many times you moved between an AI tool and your manuscript, how long you spent in each. Time in AI apps accumulates. None of it is your writing. All of it is signal that tells the story of how you worked.
+3. Find the "You hold the record" section (step 03) and replace the description with:
+When you're ready — at submission, at publication, or when someone makes an accusation — open the Inkstain menubar app, export your Trail, and go to inkstain.ai/trail. Upload your manuscript and Trail, add a note in your own words, and download your certificate. You choose what to share, when, and with whom.
+4. After the three steps section, add a new subsection with this heading and copy:
+html<div style="margin-top:3rem; padding:2rem; background:var(--parch-dk); border-left:2px solid var(--amber);">
+  <p style="font-size:11px; letter-spacing:3px; text-transform:uppercase; color:var(--amber); margin-bottom:1rem;">ONE INSTALL. EVERYTHING COVERED.</p>
+  <p style="font-size:17px; color:var(--ink); line-height:1.7;">The Inkstain desktop app watches your clipboard system-wide — it catches Claude desktop, ChatGPT, Replit, Cursor, and any AI tool in any browser, without a browser extension. One download covers everything. For authors who want richer platform attribution in Chrome, the Inkstain Trail browser extension is available separately — but it's optional, not required.</p>
+</div>
+5. Find the sample Trail certificate section and update the stats to:
+Manuscript: [your manuscript title]
+Author: [your name]  
+AI copy events: logged
+App switching: recorded
+Trail integrity: verified ✦
+Replace the fictional "Forbidden Bond / Chad Rye / 340hrs" numbers with this more honest framing:
+html<div class="cert-row"><span class="cert-label">What's captured</span><span class="cert-value">AI events · app switches · time signals</span></div>
+<div class="cert-row"><span class="cert-label">What's never captured</span><span class="cert-value">Your writing. Ever.</span></div>
+<div class="cert-row"><span class="cert-label">Who holds the record</span><span class="cert-value">You. Always.</span></div>
+<div class="cert-row"><span class="cert-label">Trail integrity</span><span class="cert-value">verified ✦</span></div>
+Save and republish.
