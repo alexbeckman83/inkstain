@@ -19,12 +19,10 @@ jobs:
           python-version: '3.11'
 
       - name: Install dependencies
-        run: |
-          pip install rumps pyinstaller
+        run: pip install rumps pyinstaller
 
       - name: Build Mac app
         run: |
-          cd inkstain-desktop
           pyinstaller \
             --name "Inkstain Trail" \
             --windowed \
@@ -35,14 +33,14 @@ jobs:
 
       - name: Zip Mac app
         run: |
-          cd inkstain-desktop/dist
+          cd dist
           zip -r "Inkstain-Trail-Mac.zip" "Inkstain Trail.app"
 
       - name: Upload Mac artifact
         uses: actions/upload-artifact@v4
         with:
           name: Inkstain-Trail-Mac
-          path: inkstain-desktop/dist/Inkstain-Trail-Mac.zip
+          path: dist/Inkstain-Trail-Mac.zip
 
   build-windows:
     runs-on: windows-latest
@@ -55,12 +53,10 @@ jobs:
           python-version: '3.11'
 
       - name: Install dependencies
-        run: |
-          pip install pystray Pillow pyinstaller
+        run: pip install pystray Pillow pyinstaller
 
       - name: Build Windows exe
         run: |
-          cd inkstain-desktop
           pyinstaller `
             --name "Inkstain Trail" `
             --windowed `
@@ -71,14 +67,14 @@ jobs:
 
       - name: Zip Windows exe
         run: |
-          cd inkstain-desktop/dist
+          cd dist
           Compress-Archive -Path "Inkstain Trail.exe" -DestinationPath "Inkstain-Trail-Windows.zip"
 
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
         with:
           name: Inkstain-Trail-Windows
-          path: inkstain-desktop/dist/Inkstain-Trail-Windows.zip
+          path: dist/Inkstain-Trail-Windows.zip
 
   release:
     needs: [build-mac, build-windows]
