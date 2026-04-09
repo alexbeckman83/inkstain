@@ -1,0 +1,47 @@
+Here's everything in one clean prompt. Copy and paste this entire thing directly to Replit Agent:
+
+Make these changes and republish:
+1. Upload verify.html — I'm attaching it to this message. Place it in the root of the project alongside index.html.
+2. In server.js, make these additions:
+At the very top where the other file paths are initialized, add:
+javascriptconst CERTS_FILE = path.join(__dirname, 'certificates.json');
+if (!fs.existsSync(CERTS_FILE)) fs.writeFileSync(CERTS_FILE, '[]');
+Add this new route before the static files section:
+javascriptif (pathname === '/api/verify' && req.method === 'GET') {
+  const hash = parsed.query.hash || '';
+  const certs = JSON.parse(fs.readFileSync(CERTS_FILE));
+  const cert = certs.find(c => c.hash === hash || c.hash.startsWith(hash));
+  if (cert) {
+    res.writeHead(200, {'Content-Type':'application/json'});
+    res.end(JSON.stringify({ verified: true, ...cert }));
+  } else {
+    res.writeHead(200, {'Content-Type':'application/json'});
+    res.end(JSON.stringify({ verified: false, reason: 'Certificate not found.' }));
+  }
+  return;
+}
+
+if (pathname === '/verify' || pathname === '/verify.html') {
+  serveStatic(res, path.join(__dirname, 'verify.html')); return;
+}
+Inside the /api/trail POST handler, right after the line res.end(pdf), add:
+javascript// Store certificate hash for verification
+try {
+  const captureDate = new Date().toLocaleDateString('en-US', {month:'long',day:'numeric',year:'numeric'});
+  const hashInput = `${author}:${title}::${captureDate}`;
+  const certHash = crypto.createHash('sha256').update(hashInput).digest('hex').slice(0, 48);
+  const certs = JSON.parse(fs.readFileSync(CERTS_FILE));
+  certs.push({
+    hash: certHash,
+    author,
+    title,
+    disclosure,
+    generated_at: captureDate,
+    trail_summary: trailJson ? (() => { try { return JSON.parse(trailJson); } catch(e) { return {}; } })() : {},
+    author_note: note || ''
+  });
+  fs.writeFileSync(CERTS_FILE, JSON.stringify(certs, null, 2));
+} catch(e) { console.error('Cert storage error:', e); }
+3. In index.html, add a Verify link to the nav alongside the other nav items:
+html<a href="/verify" style="font-size:14px; color:var(--muted); text-decoration:none;">Verify a certificate</a>
+Save and republish.

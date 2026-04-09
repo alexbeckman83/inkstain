@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Verify a Certificate — Inkstain</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=EB+Garamond:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --ink:#1B2A3B; --ink-dark:#0f1e2d; --parch:#f5f2eb; --parch-dk:#ece8dc; --amber:#c8956b; --muted:rgba(27,42,59,0.32);
+    }
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+    body{background:var(--parch);color:var(--ink);font-family:'EB Garamond',Georgia,serif;font-size:18px;line-height:1.7;min-height:100vh;}
+    nav{display:flex;justify-content:space-between;align-items:center;padding:1.6rem 4rem;border-bottom:.5px solid rgba(27,42,59,.12);}
+    .nav-logo{font-family:'Playfair Display',serif;font-weight:700;font-size:24px;color:var(--ink);text-decoration:none;letter-spacing:-.5px;}
+    .nav-logo span{color:var(--amber);}
+    .nav-back{font-size:14px;color:var(--muted);text-decoration:none;transition:color .2s;}
+    .nav-back:hover{color:var(--ink);}
+    .page{max-width:680px;margin:0 auto;padding:5rem 2rem 6rem;}
+    .eyebrow{font-size:11px;letter-spacing:4px;text-transform:uppercase;color:var(--amber);margin-bottom:1.5rem;}
+    .title{font-family:'Playfair Display',serif;font-size:clamp(32px,5vw,48px);font-weight:700;line-height:1.1;letter-spacing:-1px;margin-bottom:1rem;}
+    .sub{font-size:17px;color:var(--muted);margin-bottom:3rem;max-width:480px;}
+    .input-row{display:flex;gap:.75rem;margin-bottom:1rem;}
+    .hash-input{flex:1;padding:13px 16px;font-family:'EB Garamond',serif;font-size:16px;border:.5px solid rgba(27,42,59,.3);background:var(--parch);color:var(--ink);outline:none;transition:border-color .2s;letter-spacing:.5px;}
+    .hash-input:focus{border-color:rgba(27,42,59,.7);}
+    .hash-input::placeholder{color:rgba(27,42,59,.28);letter-spacing:0;}
+    .btn-verify{background:var(--ink);color:var(--parch);font-family:'EB Garamond',serif;font-size:17px;padding:13px 28px;border:none;cursor:pointer;letter-spacing:.5px;transition:background .2s;white-space:nowrap;}
+    .btn-verify:hover{background:var(--ink-dark);}
+    .hint{font-size:13px;color:var(--muted);font-style:italic;}
+    .result{display:none;margin-top:2.5rem;padding:2rem;border:.5px solid rgba(27,42,59,.12);}
+    .result.verified{background:var(--parch-dk);border-left:3px solid var(--amber);}
+    .result.not-found{background:#fdf0ec;border-left:3px solid rgba(200,80,50,.3);}
+    .result-badge{font-size:11px;letter-spacing:3px;text-transform:uppercase;margin-bottom:1rem;}
+    .result-badge.ok{color:var(--amber);}
+    .result-badge.fail{color:rgba(200,80,50,.7);}
+    .result-title{font-family:'Playfair Display',serif;font-size:22px;font-weight:700;color:var(--ink);margin-bottom:.25rem;}
+    .result-author{font-size:16px;color:var(--muted);margin-bottom:1.5rem;}
+    .result-row{display:flex;justify-content:space-between;padding:.5rem 0;border-bottom:.5px solid rgba(27,42,59,.08);font-size:15px;}
+    .result-row:last-child{border-bottom:none;}
+    .result-label{color:var(--muted);}
+    .result-value{color:var(--ink);font-weight:500;text-align:right;max-width:60%;}
+    .result-note{margin-top:1.5rem;padding:1rem;background:rgba(27,42,59,.04);font-size:14px;color:var(--muted);font-style:italic;line-height:1.6;}
+    .not-found-msg{font-size:16px;color:rgba(200,80,50,.8);margin-bottom:.5rem;}
+    .not-found-sub{font-size:14px;color:var(--muted);font-style:italic;}
+    .page-footer{margin-top:4rem;padding-top:2rem;border-top:.5px solid rgba(27,42,59,.1);font-size:14px;color:var(--muted);font-style:italic;text-align:center;}
+    @media(max-width:600px){nav{padding:1.2rem 1.5rem;}.page{padding:3rem 1.5rem 4rem;}.input-row{flex-direction:column;}}
+  </style>
+</head>
+<body>
+  <nav>
+    <a href="/" class="nav-logo">Ink<span>stain</span></a>
+    <a href="/" class="nav-back">← back to inkstain.ai</a>
+  </nav>
+
+  <div class="page">
+    <p class="eyebrow">Certificate verification</p>
+    <h1 class="title">Verify a Trail.</h1>
+    <p class="sub">Paste the verification hash from the bottom of an Inkstain certificate to confirm it is genuine.</p>
+
+    <div class="input-row">
+      <input type="text" class="hash-input" id="hash-input" placeholder="Paste verification hash here…" autocomplete="off" spellcheck="false">
+      <button class="btn-verify" onclick="verifyCert()">Verify</button>
+    </div>
+    <p class="hint">The hash appears at the bottom of every Inkstain Trail certificate PDF.</p>
+
+    <div class="result" id="result"></div>
+
+    <p class="page-footer">The written word will prevail.</p>
+  </div>
+
+  <script>
+    // Allow pressing Enter in the input
+    document.getElementById('hash-input').addEventListener('keydown', e => {
+      if (e.key === 'Enter') verifyCert();
+    });
+
+    // Pre-fill from URL ?hash=...
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('hash')) {
+      document.getElementById('hash-input').value = params.get('hash');
+      verifyCert();
+    }
+
+    async function verifyCert() {
+      const hash = document.getElementById('hash-input').value.trim();
+      if (!hash) return;
+
+      const el = document.getElementById('result');
+      el.style.display = 'block';
+      el.className = 'result';
+      el.innerHTML = '<p style="color:var(--muted);font-style:italic;font-size:15px;">Checking…</p>';
+
+      try {
+        const res = await fetch(`/api/verify?hash=${encodeURIComponent(hash)}`);
+        const data = await res.json();
+
+        if (data.verified) {
+          el.className = 'result verified';
+          el.innerHTML = `
+            <p class="result-badge ok">✦ Verified — certificate on record</p>
+            <p class="result-title">${esc(data.title)}</p>
+            <p class="result-author">by ${esc(data.author)}</p>
+            <div>
+              <div class="result-row">
+                <span class="result-label">Generated</span>
+                <span class="result-value">${esc(data.generated_at)}</span>
+              </div>
+              <div class="result-row">
+                <span class="result-label">Disclosure level</span>
+                <span class="result-value">${esc(data.disclosure || 'summary')}</span>
+              </div>
+              ${data.author_note ? `
+              <div class="result-row">
+                <span class="result-label">Author's note</span>
+                <span class="result-value" style="font-style:italic;">"${esc(data.author_note)}"</span>
+              </div>` : ''}
+              <div class="result-row">
+                <span class="result-label">Hash</span>
+                <span class="result-value" style="font-family:monospace;font-size:12px;word-break:break-all;">${esc(data.hash)}</span>
+              </div>
+            </div>
+            ${data.author_note ? '' : '<p class="result-note">This certificate was generated by Inkstain and is on record. Inkstain does not verify manuscript content — only that this certificate was issued.</p>'}
+          `;
+        } else {
+          el.className = 'result not-found';
+          el.innerHTML = `
+            <p class="result-badge fail">Certificate not found</p>
+            <p class="not-found-msg">No certificate matches this hash.</p>
+            <p class="not-found-sub">Double-check the hash from the bottom of your certificate PDF. Certificates generated before this verification system was introduced will not appear here.</p>
+          `;
+        }
+      } catch {
+        el.className = 'result not-found';
+        el.innerHTML = `<p class="not-found-msg">Could not reach the server. Please try again.</p>`;
+      }
+    }
+
+    function esc(str) {
+      if (!str) return '';
+      return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+  </script>
+</body>
+</html>

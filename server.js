@@ -9,10 +9,12 @@ const crypto = require('crypto');
 const PORT = process.env.PORT || 3000;
 const WAITLIST_FILE = path.join(__dirname, 'waitlist.json');
 const STATS_FILE = path.join(__dirname, 'stats.json');
+const CERTS_FILE = path.join(__dirname, 'certificates.json');
 const UPLOAD_DIR = path.join(os.tmpdir(), 'inkstain-uploads');
 
 if (!fs.existsSync(WAITLIST_FILE)) fs.writeFileSync(WAITLIST_FILE, '[]');
 if (!fs.existsSync(STATS_FILE)) fs.writeFileSync(STATS_FILE, JSON.stringify({ certificates: 3, hours: 12 }));
+if (!fs.existsSync(CERTS_FILE)) fs.writeFileSync(CERTS_FILE, '[]');
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
 const MIME = {
@@ -211,6 +213,23 @@ const server = http.createServer((req, res) => {
             stats.certificates = (stats.certificates || 0) + 1;
             fs.writeFileSync(STATS_FILE, JSON.stringify(stats));
           } catch {}
+          // Store certificate hash for verification
+          try {
+            const captureDate = new Date().toLocaleDateString('en-US', {month:'long',day:'numeric',year:'numeric'});
+            const hashInput = `${author}:${title}::${captureDate}`;
+            const certHash = crypto.createHash('sha256').update(hashInput).digest('hex').slice(0, 48);
+            const certs = JSON.parse(fs.readFileSync(CERTS_FILE));
+            certs.push({
+              hash: certHash,
+              author,
+              title,
+              disclosure,
+              generated_at: captureDate,
+              trail_summary: trailJson ? (() => { try { return JSON.parse(trailJson); } catch(e) { return {}; } })() : {},
+              author_note: note || ''
+            });
+            fs.writeFileSync(CERTS_FILE, JSON.stringify(certs, null, 2));
+          } catch(e) { console.error('Cert storage error:', e); }
           console.log(`✦ Certificate: "${title}" by ${author} [${disclosure}]${trailJson ? ' +Trail' : ''}${note ? ' +Note' : ''}`);
         });
 
@@ -229,9 +248,25 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // GET /api/verify
+  if (pathname === '/api/verify' && req.method === 'GET') {
+    const hash = parsed.query.hash || '';
+    const certs = JSON.parse(fs.readFileSync(CERTS_FILE));
+    const cert = certs.find(c => c.hash === hash || c.hash.startsWith(hash));
+    if (cert) {
+      res.writeHead(200, {'Content-Type':'application/json'});
+      res.end(JSON.stringify({ verified: true, ...cert }));
+    } else {
+      res.writeHead(200, {'Content-Type':'application/json'});
+      res.end(JSON.stringify({ verified: false, reason: 'Certificate not found.' }));
+    }
+    return;
+  }
+
   // Static files
   if (pathname.startsWith('/public/')) { serveStatic(res, path.join(__dirname, pathname)); return; }
   if (pathname === '/trail' || pathname === '/trail.html') { serveStatic(res, path.join(__dirname, 'trail.html')); return; }
+  if (pathname === '/verify' || pathname === '/verify.html') { serveStatic(res, path.join(__dirname, 'verify.html')); return; }
   if (pathname === '/' || pathname === '/index.html') { serveStatic(res, path.join(__dirname, 'index.html')); return; }
   serveStatic(res, path.join(__dirname, 'index.html'));
 });
