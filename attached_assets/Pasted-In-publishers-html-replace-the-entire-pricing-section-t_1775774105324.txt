@@ -1,0 +1,57 @@
+In publishers.html, replace the entire pricing section (the three pricing cards) with this updated content and republish:
+html<div class="pricing-grid">
+
+  <div class="pricing-card">
+    <p class="pricing-name">Institution</p>
+    <p class="pricing-price">$99</p>
+    <p class="pricing-period">per month · up to 100 students</p>
+    <p class="pricing-desc">For universities, colleges, and writing programs. Easy entry for departments, scales with your institution.</p>
+    <ul class="pricing-features">
+      <li class="pricing-feature">Up to 100 students included</li>
+      <li class="pricing-feature">$5 per student per year after 100</li>
+      <li class="pricing-feature">Student + faculty accounts</li>
+      <li class="pricing-feature">Department dashboard</li>
+      <li class="pricing-feature">Academic policy templates</li>
+      <li class="pricing-feature">Certificate verification</li>
+    </ul>
+    <a href="#contact" class="btn-pricing btn-pricing-outline">Get started</a>
+  </div>
+
+  <div class="pricing-card featured">
+    <p class="pricing-name">Newsroom & Publisher</p>
+    <p class="pricing-price" style="color:var(--amber);">$199</p>
+    <p class="pricing-period">per month · up to 25 contributors</p>
+    <p class="pricing-desc">For newspapers, magazines, and book publishers requiring Trail certificates from contributors.</p>
+    <ul class="pricing-features">
+      <li class="pricing-feature">Up to 25 contributors included</li>
+      <li class="pricing-feature">$5 per contributor per month after 25</li>
+      <li class="pricing-feature">Publisher dashboard</li>
+      <li class="pricing-feature">Policy engine</li>
+      <li class="pricing-feature">One-click verification</li>
+      <li class="pricing-feature">Verification API</li>
+    </ul>
+    <a href="/publishers/signup" class="btn-pricing btn-pricing-light">Create account</a>
+  </div>
+
+  <div class="pricing-card">
+    <p class="pricing-name">Agency</p>
+    <p class="pricing-price">$499</p>
+    <p class="pricing-period">per month · unlimited clients</p>
+    <p class="pricing-desc">For literary agencies. All-you-can-eat up to 100 clients. Above 100, let's talk.</p>
+    <ul class="pricing-features">
+      <li class="pricing-feature">Unlimited client accounts</li>
+      <li class="pricing-feature">Up to 100 clients included</li>
+      <li class="pricing-feature">Agency dashboard</li>
+      <li class="pricing-feature">Client Trail visibility</li>
+      <li class="pricing-feature">Priority support</li>
+      <li class="pricing-feature">Custom pricing above 100 clients</li>
+    </ul>
+    <a href="#contact" class="btn-pricing btn-pricing-outline">Contact us</a>
+  </div>
+
+</div>
+
+<p style="text-align:center;font-size:15px;color:var(--muted);margin-top:2rem;font-style:italic;">
+  Authors and students are always free. Always. · Enterprise and volume pricing available — <a href="#contact" style="color:var(--amber);text-decoration:none;">contact us</a>.
+</p>
+Save and republish.
