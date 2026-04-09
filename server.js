@@ -22,6 +22,37 @@ if (!fs.existsSync(PUBLISHERS_FILE)) fs.writeFileSync(PUBLISHERS_FILE, '[]');
 if (!fs.existsSync(ACCOUNTS_FILE)) fs.writeFileSync(ACCOUNTS_FILE, '[]');
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
+const RESEND_API_KEY = process.env.RESEND_API_KEY;
+
+async function sendEmail(to, subject, html) {
+  if (!RESEND_API_KEY) {
+    console.log(`[email] No API key — would have sent to ${to}: ${subject}`);
+    return { ok: true };
+  }
+  try {
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${RESEND_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        from: 'Inkstain <hello@inkstain.ai>',
+        to,
+        subject,
+        html
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) console.error('[email] Resend error:', data);
+    else console.log(`✦ Email sent to ${to}: ${subject}`);
+    return { ok: res.ok };
+  } catch(err) {
+    console.error('[email] Send failed:', err);
+    return { ok: false };
+  }
+}
+
 const MIME = {
   '.html':'text/html','.css':'text/css','.js':'application/javascript',
   '.svg':'image/svg+xml','.png':'image/png','.jpg':'image/jpeg',
@@ -289,6 +320,35 @@ const server = http.createServer((req, res) => {
           fs.writeFileSync(WAITLIST_FILE, JSON.stringify(list, null, 2));
         }
         console.log(`✦ Mobile send-link: ${email}`);
+        sendEmail(email, 'Your Inkstain download link', `
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body style="background:#f5f2eb;margin:0;padding:40px 20px;font-family:Georgia,serif;">
+  <div style="max-width:560px;margin:0 auto;">
+    <div style="background:#1B2A3B;padding:32px;text-align:center;margin-bottom:32px;">
+      <span style="font-size:28px;font-weight:700;color:#f5f2eb;letter-spacing:-.5px;">Ink<span style="color:#c8956b;">stain</span></span>
+    </div>
+    <h1 style="font-size:28px;color:#1B2A3B;margin-bottom:8px;">Your download link.</h1>
+    <p style="font-size:17px;color:rgba(27,42,59,.6);margin-bottom:32px;">Open this on your Mac or Windows computer to install Inkstain Trail.</p>
+    <div style="margin-bottom:24px;">
+      <a href="https://github.com/alexbeckman83/inkstain/releases/download/v1.1.0/Inkstain-Trail-Mac.zip"
+         style="display:inline-block;background:#1B2A3B;color:#f5f2eb;padding:14px 28px;text-decoration:none;font-size:16px;margin-right:12px;margin-bottom:12px;">
+        ↓ Download for Mac
+      </a>
+      <a href="https://github.com/alexbeckman83/inkstain/releases/download/v1.1.0/Inkstain-Trail-Windows.zip"
+         style="display:inline-block;background:transparent;border:1px solid #1B2A3B;color:#1B2A3B;padding:14px 28px;text-decoration:none;font-size:16px;margin-bottom:12px;">
+        ↓ Download for Windows
+      </a>
+    </div>
+    <p style="font-size:14px;color:rgba(27,42,59,.4);text-align:center;font-style:italic;">
+      Free for authors. Always. · <a href="https://inkstain.ai" style="color:#c8956b;text-decoration:none;">inkstain.ai</a>
+    </p>
+    <p style="font-size:13px;color:rgba(27,42,59,.3);text-align:center;margin-top:32px;font-style:italic;">The written word will prevail.</p>
+  </div>
+</body>
+</html>
+`);
         res.writeHead(200, {'Content-Type':'application/json'});
         res.end(JSON.stringify({ok: true}));
       } catch(err) {
@@ -336,6 +396,42 @@ const server = http.createServer((req, res) => {
         });
         fs.writeFileSync(ACCOUNTS_FILE, JSON.stringify(accounts, null, 2));
         console.log(`✦ New account: ${email} [${type}]${school ? ' @ ' + school : ''}`);
+        // Send welcome email
+        sendEmail(email, 'Welcome to Inkstain — your Trail starts now', `
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body style="background:#f5f2eb;margin:0;padding:40px 20px;font-family:Georgia,serif;">
+  <div style="max-width:560px;margin:0 auto;">
+    <div style="background:#1B2A3B;padding:32px;text-align:center;margin-bottom:32px;">
+      <span style="font-size:28px;font-weight:700;color:#f5f2eb;letter-spacing:-.5px;">Ink<span style="color:#c8956b;">stain</span></span>
+    </div>
+    <h1 style="font-size:28px;color:#1B2A3B;margin-bottom:8px;">Welcome, ${name}.</h1>
+    <p style="font-size:17px;color:rgba(27,42,59,.6);margin-bottom:32px;">Your account is created. Your Trail starts the moment you open the app.</p>
+    <div style="margin-bottom:24px;">
+      <a href="https://github.com/alexbeckman83/inkstain/releases/download/v1.1.0/Inkstain-Trail-Mac.zip"
+         style="display:inline-block;background:#1B2A3B;color:#f5f2eb;padding:14px 28px;text-decoration:none;font-size:16px;margin-right:12px;margin-bottom:12px;">
+        ↓ Download for Mac
+      </a>
+      <a href="https://github.com/alexbeckman83/inkstain/releases/download/v1.1.0/Inkstain-Trail-Windows.zip"
+         style="display:inline-block;background:transparent;border:1px solid #1B2A3B;color:#1B2A3B;padding:14px 28px;text-decoration:none;font-size:16px;margin-bottom:12px;">
+        ↓ Download for Windows
+      </a>
+    </div>
+    <div style="background:#ece8dc;padding:24px;margin-bottom:32px;">
+      <p style="font-size:15px;color:#1B2A3B;margin:0 0 8px;font-weight:bold;">What to do next:</p>
+      <p style="font-size:15px;color:rgba(27,42,59,.7);margin:0 0 6px;">1. Download and open the app — it lives in your menubar</p>
+      <p style="font-size:15px;color:rgba(27,42,59,.7);margin:0 0 6px;">2. Set your manuscript title in the app</p>
+      <p style="font-size:15px;color:rgba(27,42,59,.7);margin:0;">3. Write. Your Trail records automatically.</p>
+    </div>
+    <p style="font-size:14px;color:rgba(27,42,59,.4);text-align:center;font-style:italic;">
+      When you're ready — <a href="https://inkstain.ai/trail" style="color:#c8956b;text-decoration:none;">generate your certificate at inkstain.ai/trail</a>
+    </p>
+    <p style="font-size:13px;color:rgba(27,42,59,.3);text-align:center;margin-top:32px;font-style:italic;">The written word will prevail.</p>
+  </div>
+</body>
+</html>
+`);
         res.writeHead(200, {'Content-Type':'application/json'});
         res.end(JSON.stringify({ok: true}));
       } catch(err) {
