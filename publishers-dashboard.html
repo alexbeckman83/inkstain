@@ -69,7 +69,33 @@
     .tab.active{color:var(--ink);border-bottom-color:var(--amber);}
     .empty{text-align:center;padding:3rem;color:var(--muted);font-style:italic;}
     .policy-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;}
-    @media(max-width:900px){.layout{grid-template-columns:1fr;}.sidebar{display:none;}.main{padding:1.5rem;}.stats-grid,.v-stats{grid-template-columns:1fr 1fr;}.policy-grid{grid-template-columns:1fr;}}
+    .plan-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:1.25rem;margin-bottom:1.75rem;}
+    .plan-card{background:var(--parch);border:.5px solid rgba(27,42,59,.1);padding:1.75rem;display:flex;flex-direction:column;}
+    .plan-card.featured{border-color:var(--amber);border-width:1.5px;position:relative;}
+    .plan-card.featured::before{content:'Most popular';position:absolute;top:-1px;left:50%;transform:translateX(-50%) translateY(-50%);background:var(--amber);color:var(--parch);font-size:10px;letter-spacing:2px;text-transform:uppercase;padding:.25rem .875rem;}
+    .plan-name{font-family:'Playfair Display',serif;font-size:17px;font-weight:700;margin-bottom:.35rem;}
+    .plan-price{font-size:28px;font-family:'Playfair Display',serif;font-weight:700;color:var(--ink);margin-bottom:.25rem;}
+    .plan-price span{font-size:14px;font-family:'EB Garamond',serif;font-weight:400;color:var(--muted);}
+    .plan-features{list-style:none;font-size:14px;color:rgba(27,42,59,.65);flex:1;margin-bottom:1.5rem;padding:0;}
+    .plan-features li{padding:.3rem 0;border-bottom:.5px solid rgba(27,42,59,.05);}
+    .plan-features li::before{content:'✦ ';color:var(--amber);font-size:10px;}
+    .btn-upgrade{background:var(--ink);color:var(--parch);font-family:'EB Garamond',serif;font-size:15px;padding:11px;border:none;cursor:pointer;width:100%;text-align:center;}
+    .btn-upgrade.featured{background:var(--amber);}
+    .btn-upgrade:disabled{opacity:.5;cursor:default;}
+    .billing-current{background:var(--parch);border:.5px solid rgba(27,42,59,.08);padding:1.75rem;margin-bottom:1.25rem;}
+    .billing-plan-row{display:flex;align-items:center;gap:1rem;margin-bottom:1.25rem;}
+    .billing-plan-name{font-family:'Playfair Display',serif;font-size:22px;font-weight:700;}
+    .badge-plan{font-size:11px;letter-spacing:1.5px;text-transform:uppercase;padding:.3rem .875rem;}
+    .badge-active{background:rgba(60,140,80,.12);color:#2a7a40;}
+    .badge-trial{background:rgba(200,149,107,.12);color:var(--amber);}
+    .badge-past_due{background:rgba(200,60,50,.1);color:#8b3020;}
+    .badge-canceled{background:rgba(27,42,59,.08);color:var(--muted);}
+    .seat-bar{background:rgba(27,42,59,.08);height:6px;border-radius:3px;overflow:hidden;margin:.5rem 0 .35rem;}
+    .seat-bar-fill{background:var(--amber);height:100%;border-radius:3px;transition:width .4s;}
+    .seat-bar-fill.warn{background:#c87a3a;}
+    .billing-warn{background:#fff8f0;border:.5px solid rgba(200,149,107,.3);padding:.875rem 1.25rem;font-size:14px;color:#7a4a1a;margin-top:1rem;}
+    .btn-portal{background:transparent;border:.5px solid rgba(27,42,59,.25);color:var(--ink);font-family:'EB Garamond',serif;font-size:15px;padding:10px 24px;cursor:pointer;}
+    @media(max-width:900px){.layout{grid-template-columns:1fr;}.sidebar{display:none;}.main{padding:1.5rem;}.stats-grid,.v-stats{grid-template-columns:1fr 1fr;}.policy-grid,.plan-cards{grid-template-columns:1fr;}}
   </style>
 </head>
 <body>
@@ -87,6 +113,7 @@
       <button class="nav-item" onclick="setTab('invite',this)">↗ &nbsp;Invite contributors</button>
       <div class="sidebar-section" style="margin-top:1rem;">Settings</div>
       <button class="nav-item" onclick="setTab('policy',this)">⊞ &nbsp;Disclosure policy</button>
+      <button class="nav-item" onclick="setTab('billing',this)">$ &nbsp;Billing</button>
     </div>
     <div class="sidebar-footer">
       <button class="signout-btn" onclick="signOut()">Sign out</button>
@@ -100,6 +127,7 @@ const pubStr = localStorage.getItem('inkstain_pub');
 if (!session || !pubStr) { window.location.href = '/publishers/signup'; }
 const pub = JSON.parse(pubStr || '{}');
 let data = {};
+let billing = {};
 let tab = 'overview';
 
 function signOut() {
@@ -119,9 +147,13 @@ function setTab(t, el) {
 
 async function load() {
   try {
-    const r = await fetch('/api/publishers/dashboard', {headers:{'Authorization':`Bearer ${session}`}});
-    if (r.status === 401) { signOut(); return; }
-    data = await r.json();
+    const [dr, br] = await Promise.all([
+      fetch('/api/publishers/dashboard', {headers:{'Authorization':`Bearer ${session}`}}),
+      fetch('/api/billing/status', {headers:{'Authorization':`Bearer ${session}`}})
+    ]);
+    if (dr.status === 401) { signOut(); return; }
+    data = await dr.json();
+    if (br.ok) billing = await br.json();
     document.getElementById('sidebar-org').textContent = data.org || pub.org || 'Publisher';
     render();
   } catch(e) {
@@ -148,6 +180,7 @@ function render() {
       <button class="tab ${tab==='contributors'?'active':''}" onclick="tab='contributors';render()">Contributors</button>
       <button class="tab ${tab==='invite'?'active':''}" onclick="tab='invite';render()">Invite</button>
       <button class="tab ${tab==='policy'?'active':''}" onclick="tab='policy';render()">Policy</button>
+      <button class="tab ${tab==='billing'?'active':''}" onclick="tab='billing';render()">Billing</button>
     </div>`;
 
   if (tab === 'overview') {
@@ -242,7 +275,122 @@ function render() {
       </div>`;
   }
 
+  if (tab === 'billing') {
+    const plan = billing.plan || 'trial';
+    const status = billing.plan_status || 'trialing';
+    const seatCount = billing.seat_count || 0;
+    const seatLimit = billing.seat_limit || null;
+    const trialEnds = billing.trial_ends_at ? new Date(billing.trial_ends_at) : null;
+
+    if (plan === 'trial') {
+      const trialDaysLeft = trialEnds ? Math.max(0, Math.ceil((trialEnds - Date.now()) / 86400000)) : 14;
+      h += `
+      <div class="panel">
+        <div class="panel-title">Choose your plan</div>
+        ${trialEnds ? `<p style="font-size:14px;color:var(--amber);margin-bottom:1.5rem;font-style:italic;">Free trial — ${trialDaysLeft} day${trialDaysLeft===1?'':'s'} remaining.</p>` : ''}
+        <div class="plan-cards">
+          <div class="plan-card">
+            <div class="plan-name">Institution</div>
+            <div class="plan-price">$99<span>/mo</span></div>
+            <ul class="plan-features">
+              <li>Up to 100 users included</li>
+              <li>+$5/head/mo after 100</li>
+              <li>Student + faculty accounts</li>
+              <li>Department dashboard</li>
+              <li>Academic policy templates</li>
+              <li>Certificate verification</li>
+            </ul>
+            <button class="btn-upgrade" onclick="startCheckout('institution')">Upgrade →</button>
+          </div>
+          <div class="plan-card featured">
+            <div class="plan-name">Newsroom &amp; Publisher</div>
+            <div class="plan-price">$199<span>/mo</span></div>
+            <ul class="plan-features">
+              <li>Up to 25 contributors included</li>
+              <li>+$5/contributor/mo after 25</li>
+              <li>Publisher dashboard</li>
+              <li>Policy engine</li>
+              <li>One-click verification</li>
+              <li>Verification API</li>
+            </ul>
+            <button class="btn-upgrade featured" onclick="startCheckout('newsroom')">Upgrade →</button>
+          </div>
+          <div class="plan-card">
+            <div class="plan-name">Agency</div>
+            <div class="plan-price">$499<span>/mo</span></div>
+            <ul class="plan-features">
+              <li>Up to 100 clients</li>
+              <li>Custom pricing above 100</li>
+              <li>Agency dashboard</li>
+              <li>Client Trail visibility</li>
+              <li>Priority support</li>
+            </ul>
+            <button class="btn-upgrade" onclick="startCheckout('agency')">Upgrade →</button>
+          </div>
+        </div>
+        <p style="font-size:14px;color:var(--muted);font-style:italic;text-align:center;">Authors and students are always free. Always.</p>
+        <p id="billing-status-msg" style="font-size:13px;color:var(--amber);margin-top:.75rem;text-align:center;min-height:1.2em;font-style:italic;"></p>
+      </div>`;
+    } else {
+      const planLabel = {institution:'Institution',newsroom:'Newsroom & Publisher',agency:'Agency'}[plan] || plan;
+      const badgeClass = {active:'badge-active',trialing:'badge-trial',past_due:'badge-past_due',canceled:'badge-canceled'}[status] || 'badge-trial';
+      const pct = seatLimit ? Math.round(seatCount / seatLimit * 100) : 0;
+      const nearLimit = seatLimit && (seatLimit - seatCount) <= 3;
+      const overageRate = billing.overage_rate;
+      h += `
+      <div class="billing-current">
+        <div class="billing-plan-row">
+          <div class="billing-plan-name">${esc(planLabel)}</div>
+          <span class="badge-plan ${badgeClass}">${status.replace('_',' ')}</span>
+        </div>
+        ${seatLimit !== null ? `
+        <p style="font-size:14px;color:var(--muted);margin-bottom:.35rem;">${seatCount} / ${seatLimit} contributors</p>
+        <div class="seat-bar"><div class="seat-bar-fill${nearLimit?' warn':''}" style="width:${Math.min(100,pct)}%"></div></div>
+        <p style="font-size:12px;color:var(--muted);">${seatLimit} included · ${overageRate==='custom'?'custom pricing':'$'+overageRate+'/mo'} per additional</p>
+        ${nearLimit ? `<div class="billing-warn">Approaching contributor limit — additional contributors are $${overageRate}/mo each.</div>` : ''}
+        ` : ''}
+        ${billing.subscribed_at ? `<p style="font-size:13px;color:var(--muted);margin-top:1rem;">Subscribed ${new Date(billing.subscribed_at).toLocaleDateString('en-US',{month:'long',year:'numeric'})}</p>` : ''}
+        <div style="margin-top:1.5rem;">
+          <button class="btn-portal" onclick="managePortal()">Manage billing →</button>
+        </div>
+        <p id="billing-status-msg" style="font-size:13px;color:var(--amber);margin-top:.75rem;min-height:1.2em;font-style:italic;"></p>
+      </div>`;
+    }
+  }
+
   document.getElementById('main').innerHTML = h;
+}
+
+async function startCheckout(plan) {
+  const btn = event.target;
+  const msg = document.getElementById('billing-status-msg');
+  btn.disabled = true;
+  btn.textContent = 'Redirecting...';
+  if (msg) msg.textContent = 'Opening Stripe Checkout…';
+  try {
+    const r = await fetch('/api/billing/create-checkout-session', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json','Authorization':`Bearer ${session}`},
+      body: JSON.stringify({plan})
+    });
+    const d = await r.json();
+    if (d.url) { window.location.href = d.url; }
+    else { if (msg) msg.textContent = d.error || 'Could not open checkout.'; btn.disabled = false; btn.textContent = 'Upgrade →'; }
+  } catch(e) { if (msg) msg.textContent = 'Could not connect.'; btn.disabled = false; btn.textContent = 'Upgrade →'; }
+}
+
+async function managePortal() {
+  const msg = document.getElementById('billing-status-msg');
+  if (msg) msg.textContent = 'Opening billing portal…';
+  try {
+    const r = await fetch('/api/billing/create-portal-session', {
+      method: 'POST',
+      headers: {'Authorization':`Bearer ${session}`}
+    });
+    const d = await r.json();
+    if (d.url) { window.location.href = d.url; }
+    else { if (msg) msg.textContent = d.error || 'Could not open portal.'; }
+  } catch(e) { if (msg) msg.textContent = 'Could not connect.'; }
 }
 
 async function doVerify() {

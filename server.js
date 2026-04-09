@@ -6,6 +6,7 @@ const { spawn } = require('child_process');
 const os = require('os');
 const crypto = require('crypto');
 const { Pool } = require('pg');
+const Stripe = require('stripe');
 
 const PORT = process.env.PORT || 3000;
 const SCHOOLS_FILE = path.join(__dirname, 'schools.json');
@@ -15,6 +16,17 @@ if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
 // ── Database ──────────────────────────────────────────────────────────────────
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+
+// ── Stripe ────────────────────────────────────────────────────────────────────
+const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null;
+
+const PLAN_PRICE_MAP = {
+  institution: process.env.STRIPE_PRICE_INSTITUTION,
+  newsroom:    process.env.STRIPE_PRICE_NEWSROOM,
+  agency:      process.env.STRIPE_PRICE_AGENCY,
+};
+const SEAT_LIMITS = { institution: 100, newsroom: 25, agency: 100 };
+const OVERAGE_RATE = { institution: 5, newsroom: 5, agency: 'custom' };
 
 async function initDB() {
   await pool.query(`
@@ -62,6 +74,15 @@ async function initDB() {
       source TEXT,
       created_at TIMESTAMP DEFAULT NOW()
     );
+  `);
+  await pool.query(`
+    ALTER TABLE publishers ADD COLUMN IF NOT EXISTS stripe_customer_id TEXT;
+    ALTER TABLE publishers ADD COLUMN IF NOT EXISTS stripe_subscription_id TEXT;
+    ALTER TABLE publishers ADD COLUMN IF NOT EXISTS plan TEXT DEFAULT 'trial';
+    ALTER TABLE publishers ADD COLUMN IF NOT EXISTS plan_status TEXT DEFAULT 'trialing';
+    ALTER TABLE publishers ADD COLUMN IF NOT EXISTS seat_count INTEGER DEFAULT 0;
+    ALTER TABLE publishers ADD COLUMN IF NOT EXISTS trial_ends_at TIMESTAMPTZ;
+    ALTER TABLE publishers ADD COLUMN IF NOT EXISTS subscribed_at TIMESTAMPTZ;
   `);
   console.log('✦ Database ready');
 }
@@ -535,9 +556,10 @@ const server = http.createServer((req, res) => {
         const token = crypto.randomBytes(24).toString('hex');
         const expires = Date.now() + 30 * 24 * 60 * 60 * 1000;
         const defaultPolicy = JSON.stringify({ requires_trail: 'preferred', disclosure_level: 'summary', accepts_ai: 'case-by-case' });
+        const trialEndsAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
         await pool.query(
-          'INSERT INTO publishers (id, org, pub_type, name, role, email, password_hash, policy, session_token, session_expires, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)',
-          [id, org, type||'other', name, role||'', email, passwordHash, defaultPolicy, token, expires, new Date().toISOString()]
+          'INSERT INTO publishers (id, org, pub_type, name, role, email, password_hash, policy, session_token, session_expires, created_at, plan, plan_status, trial_ends_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)',
+          [id, org, type||'other', name, role||'', email, passwordHash, defaultPolicy, token, expires, new Date().toISOString(), 'trial', 'trialing', trialEndsAt]
         );
         console.log(`✦ Publisher signup: ${org} (${email})`);
         json(res, 200, {ok:true, token, publisher:{id, org, pub_type:type, name, role, email}});
@@ -619,6 +641,136 @@ const server = http.createServer((req, res) => {
         json(res, 200, {ok:true});
       } catch(e) { console.error(e); json(res, 500, {error:'Server error'}); }
     });
+    return;
+  }
+
+  // ── Billing API ──────────────────────────────────────────────────────────────
+
+  // POST /api/billing/webhook  (raw body — must stay before JSON routes)
+  if (pathname === '/api/billing/webhook' && req.method === 'POST') {
+    const chunks = [];
+    req.on('data', c => chunks.push(c));
+    req.on('end', async () => {
+      if (!stripe) { json(res, 200, {received:true}); return; }
+      try {
+        const rawBody = Buffer.concat(chunks);
+        const sig = req.headers['stripe-signature'];
+        let event;
+        try {
+          event = stripe.webhooks.constructEvent(rawBody, sig, process.env.STRIPE_WEBHOOK_SECRET);
+        } catch(err) {
+          res.writeHead(400); res.end(`Webhook Error: ${err.message}`); return;
+        }
+        switch(event.type) {
+          case 'checkout.session.completed': {
+            const s = event.data.object;
+            const plan = s.metadata?.plan || 'institution';
+            await pool.query(
+              'UPDATE publishers SET stripe_subscription_id=$1, plan=$2, plan_status=$3, subscribed_at=NOW() WHERE stripe_customer_id=$4',
+              [s.subscription, plan, 'active', s.customer]
+            );
+            break;
+          }
+          case 'customer.subscription.updated': {
+            const sub = event.data.object;
+            await pool.query(
+              'UPDATE publishers SET plan_status=$1 WHERE stripe_subscription_id=$2',
+              [sub.status, sub.id]
+            );
+            break;
+          }
+          case 'customer.subscription.deleted': {
+            const sub = event.data.object;
+            await pool.query(
+              'UPDATE publishers SET plan_status=$1 WHERE stripe_subscription_id=$2',
+              ['canceled', sub.id]
+            );
+            break;
+          }
+          case 'invoice.payment_failed': {
+            const inv = event.data.object;
+            await pool.query(
+              'UPDATE publishers SET plan_status=$1 WHERE stripe_customer_id=$2',
+              ['past_due', inv.customer]
+            );
+            break;
+          }
+        }
+        json(res, 200, {received:true});
+      } catch(e) { console.error('Webhook error:', e); json(res, 500, {}); }
+    });
+    return;
+  }
+
+  // POST /api/billing/create-checkout-session
+  if (pathname === '/api/billing/create-checkout-session' && req.method === 'POST') {
+    let body = '';
+    req.on('data', c => body += c);
+    req.on('end', async () => {
+      try {
+        if (!stripe) { json(res, 503, {error:'Billing not configured'}); return; }
+        const pub = await pubFromToken(req.headers['authorization']);
+        if (!pub) { json(res, 401, {error:'Unauthorized'}); return; }
+        const { plan } = JSON.parse(body);
+        const priceId = PLAN_PRICE_MAP[plan];
+        if (!priceId) { json(res, 400, {error:'Invalid plan'}); return; }
+        let customerId = pub.stripe_customer_id;
+        if (!customerId) {
+          const customer = await stripe.customers.create({ email: pub.email, name: pub.org });
+          customerId = customer.id;
+          await pool.query('UPDATE publishers SET stripe_customer_id=$1 WHERE id=$2', [customerId, pub.id]);
+        }
+        const session = await stripe.checkout.sessions.create({
+          customer: customerId,
+          mode: 'subscription',
+          line_items: [{ price: priceId, quantity: 1 }],
+          success_url: 'https://inkstain.ai/publishers/dashboard?billing=success',
+          cancel_url: 'https://inkstain.ai/publishers/dashboard?billing=canceled',
+          allow_promotion_codes: true,
+          metadata: { plan, publisher_id: pub.id },
+        });
+        json(res, 200, {url: session.url});
+      } catch(e) { console.error(e); json(res, 500, {error:'Server error'}); }
+    });
+    return;
+  }
+
+  // GET /api/billing/status
+  if (pathname === '/api/billing/status' && req.method === 'GET') {
+    (async () => {
+      const pub = await pubFromToken(req.headers['authorization']);
+      if (!pub) { json(res, 401, {error:'Unauthorized'}); return; }
+      const plan = pub.plan || 'trial';
+      const seatLimit = SEAT_LIMITS[plan] || null;
+      const overageRate = OVERAGE_RATE[plan] || null;
+      json(res, 200, {
+        plan,
+        plan_status: pub.plan_status || 'trialing',
+        trial_ends_at: pub.trial_ends_at || null,
+        subscribed_at: pub.subscribed_at || null,
+        seat_count: pub.seat_count || 0,
+        seat_limit: seatLimit,
+        overage_rate: overageRate,
+      });
+    })().catch(e => { console.error(e); json(res, 500, {error:'Server error'}); });
+    return;
+  }
+
+  // POST /api/billing/create-portal-session
+  if (pathname === '/api/billing/create-portal-session' && req.method === 'POST') {
+    (async () => {
+      try {
+        if (!stripe) { json(res, 503, {error:'Billing not configured'}); return; }
+        const pub = await pubFromToken(req.headers['authorization']);
+        if (!pub) { json(res, 401, {error:'Unauthorized'}); return; }
+        if (!pub.stripe_customer_id) { json(res, 400, {error:'No billing account found'}); return; }
+        const portalSession = await stripe.billingPortal.sessions.create({
+          customer: pub.stripe_customer_id,
+          return_url: 'https://inkstain.ai/publishers/dashboard',
+        });
+        json(res, 200, {url: portalSession.url});
+      } catch(e) { console.error(e); json(res, 500, {error:'Server error'}); }
+    })();
     return;
   }
 

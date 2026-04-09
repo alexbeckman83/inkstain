@@ -1,0 +1,110 @@
+REPLIT AGENT PROMPT — Stripe Integration
+We're adding Stripe subscription billing to Inkstain. We already have a Stripe account. Do not create a new one.
+Environment variables needed (add to Replit Secrets manually — just reference them in code):
+
+STRIPE_SECRET_KEY
+STRIPE_WEBHOOK_SECRET
+STRIPE_PRICE_INSTITUTION
+STRIPE_PRICE_NEWSROOM
+STRIPE_PRICE_AGENCY
+
+
+Step 1 — Install Stripe
+npm install stripe
+Add to package.json dependencies.
+
+Step 2 — Create Stripe products via setup script
+Create scripts/create-stripe-products.js. When run, it creates three products with monthly recurring prices:
+Product NamePriceIntervalInkstain Institution$99/momonthInkstain Newsroom & Publisher$199/momonthInkstain Agency$499/momonth
+After creating, log all price_id values to console. We paste these into Replit Secrets as STRIPE_PRICE_INSTITUTION, STRIPE_PRICE_NEWSROOM, STRIPE_PRICE_AGENCY.
+
+Step 3 — Database migration
+sqlALTER TABLE publishers ADD COLUMN IF NOT EXISTS stripe_customer_id TEXT;
+ALTER TABLE publishers ADD COLUMN IF NOT EXISTS stripe_subscription_id TEXT;
+ALTER TABLE publishers ADD COLUMN IF NOT EXISTS plan TEXT DEFAULT 'trial';
+ALTER TABLE publishers ADD COLUMN IF NOT EXISTS plan_status TEXT DEFAULT 'trialing';
+ALTER TABLE publishers ADD COLUMN IF NOT EXISTS seat_count INTEGER DEFAULT 0;
+ALTER TABLE publishers ADD COLUMN IF NOT EXISTS trial_ends_at TIMESTAMPTZ;
+ALTER TABLE publishers ADD COLUMN IF NOT EXISTS subscribed_at TIMESTAMPTZ;
+plan values: trial, institution, newsroom, agency
+plan_status values: trialing, active, past_due, canceled
+Seat limits by plan:
+
+institution: 100 included, $5/head/mo overage
+newsroom: 25 included, $5/head/mo overage
+agency: 100 included, custom above
+
+New publisher signups get plan: trial, trial_ends_at = 14 days from signup.
+
+Step 4 — API routes
+POST /api/billing/create-checkout-session
+
+Auth: Bearer token
+Body: { plan: 'institution' | 'newsroom' | 'agency' }
+Look up publisher by session token
+Create or retrieve Stripe customer, store stripe_customer_id
+Create Stripe Checkout Session:
+
+Correct price_id for plan
+mode: 'subscription'
+success_url: https://inkstain.ai/publishers/dashboard?billing=success
+cancel_url: https://inkstain.ai/publishers/dashboard?billing=canceled
+customer_email pre-filled
+allow_promotion_codes: true
+
+
+Return { url }
+
+POST /api/billing/webhook
+
+Raw body parser (not JSON — required for Stripe signature verification)
+Verify with STRIPE_WEBHOOK_SECRET
+Handle:
+
+checkout.session.completed → set plan, plan_status: active, stripe_subscription_id, subscribed_at
+customer.subscription.updated → update plan_status
+customer.subscription.deleted → set plan_status: canceled
+invoice.payment_failed → set plan_status: past_due
+
+
+Return 200 on all events
+
+GET /api/billing/status
+
+Auth: Bearer token
+Return { plan, plan_status, trial_ends_at, subscribed_at, seat_count, seat_limit, overage_rate }
+seat_limit: 100 for institution, 25 for newsroom, 100 for agency
+overage_rate: $5 for institution and newsroom, custom for agency
+
+POST /api/billing/create-portal-session
+
+Auth: Bearer token
+Create Stripe Customer Portal session
+return_url: https://inkstain.ai/publishers/dashboard
+Return { url }
+
+
+Step 5 — Billing tab in publisher dashboard
+Add a 6th tab "Billing" to the publisher dashboard (after Policy).
+If plan === 'trial': Show three upgrade cards side by side:
+Institution — $99/mo
+Up to 100 users included · +$5/head/mo after 100 · Student + faculty accounts · Department dashboard · Academic policy templates · Certificate verification
+Newsroom & Publisher — $199/mo
+Up to 25 contributors included · +$5/contributor/mo after 25 · Publisher dashboard · Policy engine · One-click verification · Verification API
+Agency — $499/mo
+Up to 100 clients · Custom pricing above 100 · Agency dashboard · Client Trail visibility · Priority support
+Each card has an "Upgrade" button that calls /api/billing/create-checkout-session and redirects to Stripe Checkout. Newsroom & Publisher card is featured (amber accent).
+Also show: "Authors and students are always free. Always." in muted italic below the cards.
+If subscribed: Show current plan name, status badge, seat count vs limit (e.g. "12 / 25 contributors"), and a "Manage billing" button that calls /api/billing/create-portal-session.
+If seat_count is within 3 of the seat limit, show an amber warning: "Approaching contributor limit — additional contributors are $5/mo each."
+
+Step 6 — Trial enforcement
+On publisher dashboard API routes, check plan_status. If plan === 'trial' and trial_ends_at is past, return 402 { error: 'subscription_required' } on the Verification API only (/api/verify when called with publisher API key). Do not lock the dashboard UI itself during trial.
+
+After all steps complete:
+
+Confirm webhook registered at POST /api/billing/webhook
+Confirm scripts/create-stripe-products.js is ready to run
+Confirm Billing tab renders in dashboard
+
+We will add all Stripe keys to Replit Secrets manually before running the setup script.
