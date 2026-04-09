@@ -289,12 +289,18 @@ function handleSchoolInput(val) {
     return;
   }
 
-  const query = val.toLowerCase();
+  const query = val.toLowerCase().trim();
+  const terms = query.split(/\s+/);
+
   const matches = SCHOOLS.filter(s => {
     const name = s.name.toLowerCase();
-    return name.includes(query) ||
-      name.split(' ').some(word => word.startsWith(query));
-  }).slice(0, 8);
+    const city = s.city.toLowerCase();
+    const state = s.state.toLowerCase();
+    const searchable = name + ' ' + city + ' ' + state;
+
+    // Match if ALL typed terms appear somewhere in name/city/state
+    return terms.every(term => searchable.includes(term));
+  }).slice(0, 10);
 
   let html = matches.map((s, i) =>
     `<div class="autocomplete-item" data-name="${escHtml(s.name)}" data-idx="${i}"
