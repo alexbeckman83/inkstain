@@ -1,0 +1,1022 @@
+[
+  {
+    "name": "American University",
+    "city": "Washington",
+    "state": "DC",
+    "type": "university"
+  },
+  {
+    "name": "Amherst College",
+    "city": "Amherst",
+    "state": "MA",
+    "type": "college"
+  },
+  {
+    "name": "Arizona State University",
+    "city": "Tempe",
+    "state": "AZ",
+    "type": "university"
+  },
+  {
+    "name": "Auburn University",
+    "city": "Auburn",
+    "state": "AL",
+    "type": "university"
+  },
+  {
+    "name": "Australian National University",
+    "city": "Canberra",
+    "state": "Australia",
+    "type": "university"
+  },
+  {
+    "name": "Barnard College",
+    "city": "New York",
+    "state": "NY",
+    "type": "college"
+  },
+  {
+    "name": "Bates College",
+    "city": "Lewiston",
+    "state": "ME",
+    "type": "college"
+  },
+  {
+    "name": "Bennington College",
+    "city": "Bennington",
+    "state": "VT",
+    "type": "college"
+  },
+  {
+    "name": "Boston College",
+    "city": "Chestnut Hill",
+    "state": "MA",
+    "type": "university"
+  },
+  {
+    "name": "Boston University",
+    "city": "Boston",
+    "state": "MA",
+    "type": "university"
+  },
+  {
+    "name": "Bowdoin College",
+    "city": "Brunswick",
+    "state": "ME",
+    "type": "college"
+  },
+  {
+    "name": "Brandeis University",
+    "city": "Waltham",
+    "state": "MA",
+    "type": "university"
+  },
+  {
+    "name": "Brown University",
+    "city": "Providence",
+    "state": "RI",
+    "type": "university"
+  },
+  {
+    "name": "Bryn Mawr College",
+    "city": "Bryn Mawr",
+    "state": "PA",
+    "type": "college"
+  },
+  {
+    "name": "Carleton College",
+    "city": "Northfield",
+    "state": "MN",
+    "type": "college"
+  },
+  {
+    "name": "Carnegie Mellon University",
+    "city": "Pittsburgh",
+    "state": "PA",
+    "type": "university"
+  },
+  {
+    "name": "Case Western Reserve University",
+    "city": "Cleveland",
+    "state": "OH",
+    "type": "university"
+  },
+  {
+    "name": "City University of New York",
+    "city": "New York",
+    "state": "NY",
+    "type": "university"
+  },
+  {
+    "name": "Claremont McKenna College",
+    "city": "Claremont",
+    "state": "CA",
+    "type": "college"
+  },
+  {
+    "name": "Clemson University",
+    "city": "Clemson",
+    "state": "SC",
+    "type": "university"
+  },
+  {
+    "name": "Colby College",
+    "city": "Waterville",
+    "state": "ME",
+    "type": "college"
+  },
+  {
+    "name": "Colgate University",
+    "city": "Hamilton",
+    "state": "NY",
+    "type": "college"
+  },
+  {
+    "name": "Colorado College",
+    "city": "Colorado Springs",
+    "state": "CO",
+    "type": "college"
+  },
+  {
+    "name": "Columbia University",
+    "city": "New York",
+    "state": "NY",
+    "type": "university"
+  },
+  {
+    "name": "Connecticut College",
+    "city": "New London",
+    "state": "CT",
+    "type": "college"
+  },
+  {
+    "name": "Cornell University",
+    "city": "Ithaca",
+    "state": "NY",
+    "type": "university"
+  },
+  {
+    "name": "Dartmouth College",
+    "city": "Hanover",
+    "state": "NH",
+    "type": "university"
+  },
+  {
+    "name": "Davidson College",
+    "city": "Davidson",
+    "state": "NC",
+    "type": "college"
+  },
+  {
+    "name": "Denison University",
+    "city": "Granville",
+    "state": "OH",
+    "type": "college"
+  },
+  {
+    "name": "Duke University",
+    "city": "Durham",
+    "state": "NC",
+    "type": "university"
+  },
+  {
+    "name": "Durham University",
+    "city": "Durham",
+    "state": "UK",
+    "type": "university"
+  },
+  {
+    "name": "ETH Zurich",
+    "city": "Zurich",
+    "state": "Switzerland",
+    "type": "university"
+  },
+  {
+    "name": "Emerson College",
+    "city": "Boston",
+    "state": "MA",
+    "type": "college"
+  },
+  {
+    "name": "Emory University",
+    "city": "Atlanta",
+    "state": "GA",
+    "type": "university"
+  },
+  {
+    "name": "Fisk University",
+    "city": "Nashville",
+    "state": "TN",
+    "type": "university"
+  },
+  {
+    "name": "Fordham University",
+    "city": "New York",
+    "state": "NY",
+    "type": "university"
+  },
+  {
+    "name": "Franklin & Marshall College",
+    "city": "Lancaster",
+    "state": "PA",
+    "type": "college"
+  },
+  {
+    "name": "George Mason University",
+    "city": "Fairfax",
+    "state": "VA",
+    "type": "university"
+  },
+  {
+    "name": "George Washington University",
+    "city": "Washington",
+    "state": "DC",
+    "type": "university"
+  },
+  {
+    "name": "Georgetown University",
+    "city": "Washington",
+    "state": "DC",
+    "type": "university"
+  },
+  {
+    "name": "Grinnell College",
+    "city": "Grinnell",
+    "state": "IA",
+    "type": "college"
+  },
+  {
+    "name": "Hamilton College",
+    "city": "Clinton",
+    "state": "NY",
+    "type": "college"
+  },
+  {
+    "name": "Hampshire College",
+    "city": "Amherst",
+    "state": "MA",
+    "type": "college"
+  },
+  {
+    "name": "Hampton University",
+    "city": "Hampton",
+    "state": "VA",
+    "type": "university"
+  },
+  {
+    "name": "Harvard University",
+    "city": "Cambridge",
+    "state": "MA",
+    "type": "university"
+  },
+  {
+    "name": "Haverford College",
+    "city": "Haverford",
+    "state": "PA",
+    "type": "college"
+  },
+  {
+    "name": "Howard University",
+    "city": "Washington",
+    "state": "DC",
+    "type": "university"
+  },
+  {
+    "name": "Imperial College London",
+    "city": "London",
+    "state": "UK",
+    "type": "university"
+  },
+  {
+    "name": "Indiana University",
+    "city": "Bloomington",
+    "state": "IN",
+    "type": "university"
+  },
+  {
+    "name": "Iowa State University",
+    "city": "Ames",
+    "state": "IA",
+    "type": "university"
+  },
+  {
+    "name": "Johns Hopkins University",
+    "city": "Baltimore",
+    "state": "MD",
+    "type": "university"
+  },
+  {
+    "name": "Kansas State University",
+    "city": "Manhattan",
+    "state": "KS",
+    "type": "university"
+  },
+  {
+    "name": "Kenyon College",
+    "city": "Gambier",
+    "state": "OH",
+    "type": "college"
+  },
+  {
+    "name": "King's College London",
+    "city": "London",
+    "state": "UK",
+    "type": "university"
+  },
+  {
+    "name": "Lawrence University",
+    "city": "Appleton",
+    "state": "WI",
+    "type": "college"
+  },
+  {
+    "name": "Lehigh University",
+    "city": "Bethlehem",
+    "state": "PA",
+    "type": "university"
+  },
+  {
+    "name": "London School of Economics",
+    "city": "London",
+    "state": "UK",
+    "type": "university"
+  },
+  {
+    "name": "Louisiana State University",
+    "city": "Baton Rouge",
+    "state": "LA",
+    "type": "university"
+  },
+  {
+    "name": "Macalester College",
+    "city": "St. Paul",
+    "state": "MN",
+    "type": "college"
+  },
+  {
+    "name": "Massachusetts Institute of Technology",
+    "city": "Cambridge",
+    "state": "MA",
+    "type": "university"
+  },
+  {
+    "name": "McGill University",
+    "city": "Montreal",
+    "state": "Canada",
+    "type": "university"
+  },
+  {
+    "name": "Michigan State University",
+    "city": "East Lansing",
+    "state": "MI",
+    "type": "university"
+  },
+  {
+    "name": "Middlebury College",
+    "city": "Middlebury",
+    "state": "VT",
+    "type": "college"
+  },
+  {
+    "name": "Morehouse College",
+    "city": "Atlanta",
+    "state": "GA",
+    "type": "college"
+  },
+  {
+    "name": "Mount Holyoke College",
+    "city": "South Hadley",
+    "state": "MA",
+    "type": "college"
+  },
+  {
+    "name": "National University of Singapore",
+    "city": "Singapore",
+    "state": "Singapore",
+    "type": "university"
+  },
+  {
+    "name": "New York University",
+    "city": "New York",
+    "state": "NY",
+    "type": "university"
+  },
+  {
+    "name": "Northeastern University",
+    "city": "Boston",
+    "state": "MA",
+    "type": "university"
+  },
+  {
+    "name": "Northwestern University",
+    "city": "Evanston",
+    "state": "IL",
+    "type": "university"
+  },
+  {
+    "name": "Oberlin College",
+    "city": "Oberlin",
+    "state": "OH",
+    "type": "college"
+  },
+  {
+    "name": "Ohio State University",
+    "city": "Columbus",
+    "state": "OH",
+    "type": "university"
+  },
+  {
+    "name": "Oklahoma State University",
+    "city": "Stillwater",
+    "state": "OK",
+    "type": "university"
+  },
+  {
+    "name": "Oregon State University",
+    "city": "Corvallis",
+    "state": "OR",
+    "type": "university"
+  },
+  {
+    "name": "Pace University",
+    "city": "New York",
+    "state": "NY",
+    "type": "university"
+  },
+  {
+    "name": "Parsons School of Design",
+    "city": "New York",
+    "state": "NY",
+    "type": "college"
+  },
+  {
+    "name": "Penn State University",
+    "city": "University Park",
+    "state": "PA",
+    "type": "university"
+  },
+  {
+    "name": "Pomona College",
+    "city": "Claremont",
+    "state": "CA",
+    "type": "college"
+  },
+  {
+    "name": "Pratt Institute",
+    "city": "Brooklyn",
+    "state": "NY",
+    "type": "university"
+  },
+  {
+    "name": "Princeton University",
+    "city": "Princeton",
+    "state": "NJ",
+    "type": "university"
+  },
+  {
+    "name": "Purdue University",
+    "city": "West Lafayette",
+    "state": "IN",
+    "type": "university"
+  },
+  {
+    "name": "Queen's University",
+    "city": "Kingston",
+    "state": "Canada",
+    "type": "university"
+  },
+  {
+    "name": "Reed College",
+    "city": "Portland",
+    "state": "OR",
+    "type": "college"
+  },
+  {
+    "name": "Rhode Island School of Design",
+    "city": "Providence",
+    "state": "RI",
+    "type": "college"
+  },
+  {
+    "name": "Rice University",
+    "city": "Houston",
+    "state": "TX",
+    "type": "university"
+  },
+  {
+    "name": "Rutgers University",
+    "city": "New Brunswick",
+    "state": "NJ",
+    "type": "university"
+  },
+  {
+    "name": "Sarah Lawrence College",
+    "city": "Bronxville",
+    "state": "NY",
+    "type": "college"
+  },
+  {
+    "name": "School of the Art Institute of Chicago",
+    "city": "Chicago",
+    "state": "IL",
+    "type": "college"
+  },
+  {
+    "name": "Sciences Po",
+    "city": "Paris",
+    "state": "France",
+    "type": "university"
+  },
+  {
+    "name": "Skidmore College",
+    "city": "Saratoga Springs",
+    "state": "NY",
+    "type": "college"
+  },
+  {
+    "name": "Smith College",
+    "city": "Northampton",
+    "state": "MA",
+    "type": "college"
+  },
+  {
+    "name": "Sorbonne University",
+    "city": "Paris",
+    "state": "France",
+    "type": "university"
+  },
+  {
+    "name": "Spelman College",
+    "city": "Atlanta",
+    "state": "GA",
+    "type": "college"
+  },
+  {
+    "name": "St. John's University",
+    "city": "Queens",
+    "state": "NY",
+    "type": "university"
+  },
+  {
+    "name": "Stanford University",
+    "city": "Stanford",
+    "state": "CA",
+    "type": "university"
+  },
+  {
+    "name": "Swarthmore College",
+    "city": "Swarthmore",
+    "state": "PA",
+    "type": "college"
+  },
+  {
+    "name": "The New School",
+    "city": "New York",
+    "state": "NY",
+    "type": "university"
+  },
+  {
+    "name": "Trinity College",
+    "city": "Hartford",
+    "state": "CT",
+    "type": "college"
+  },
+  {
+    "name": "Tufts University",
+    "city": "Medford",
+    "state": "MA",
+    "type": "university"
+  },
+  {
+    "name": "Tulane University",
+    "city": "New Orleans",
+    "state": "LA",
+    "type": "university"
+  },
+  {
+    "name": "Tuskegee University",
+    "city": "Tuskegee",
+    "state": "AL",
+    "type": "university"
+  },
+  {
+    "name": "Union College",
+    "city": "Schenectady",
+    "state": "NY",
+    "type": "college"
+  },
+  {
+    "name": "University College London",
+    "city": "London",
+    "state": "UK",
+    "type": "university"
+  },
+  {
+    "name": "University of Alabama",
+    "city": "Tuscaloosa",
+    "state": "AL",
+    "type": "university"
+  },
+  {
+    "name": "University of Amsterdam",
+    "city": "Amsterdam",
+    "state": "Netherlands",
+    "type": "university"
+  },
+  {
+    "name": "University of Arizona",
+    "city": "Tucson",
+    "state": "AZ",
+    "type": "university"
+  },
+  {
+    "name": "University of Arkansas",
+    "city": "Fayetteville",
+    "state": "AR",
+    "type": "university"
+  },
+  {
+    "name": "University of Bristol",
+    "city": "Bristol",
+    "state": "UK",
+    "type": "university"
+  },
+  {
+    "name": "University of British Columbia",
+    "city": "Vancouver",
+    "state": "Canada",
+    "type": "university"
+  },
+  {
+    "name": "University of California, Berkeley",
+    "city": "Berkeley",
+    "state": "CA",
+    "type": "university"
+  },
+  {
+    "name": "University of California, Davis",
+    "city": "Davis",
+    "state": "CA",
+    "type": "university"
+  },
+  {
+    "name": "University of California, Irvine",
+    "city": "Irvine",
+    "state": "CA",
+    "type": "university"
+  },
+  {
+    "name": "University of California, Los Angeles",
+    "city": "Los Angeles",
+    "state": "CA",
+    "type": "university"
+  },
+  {
+    "name": "University of California, San Diego",
+    "city": "La Jolla",
+    "state": "CA",
+    "type": "university"
+  },
+  {
+    "name": "University of California, Santa Barbara",
+    "city": "Santa Barbara",
+    "state": "CA",
+    "type": "university"
+  },
+  {
+    "name": "University of California, Santa Cruz",
+    "city": "Santa Cruz",
+    "state": "CA",
+    "type": "university"
+  },
+  {
+    "name": "University of Cambridge",
+    "city": "Cambridge",
+    "state": "UK",
+    "type": "university"
+  },
+  {
+    "name": "University of Chicago",
+    "city": "Chicago",
+    "state": "IL",
+    "type": "university"
+  },
+  {
+    "name": "University of Colorado Boulder",
+    "city": "Boulder",
+    "state": "CO",
+    "type": "university"
+  },
+  {
+    "name": "University of Colorado Denver",
+    "city": "Denver",
+    "state": "CO",
+    "type": "university"
+  },
+  {
+    "name": "University of Connecticut",
+    "city": "Storrs",
+    "state": "CT",
+    "type": "university"
+  },
+  {
+    "name": "University of Delaware",
+    "city": "Newark",
+    "state": "DE",
+    "type": "university"
+  },
+  {
+    "name": "University of Edinburgh",
+    "city": "Edinburgh",
+    "state": "UK",
+    "type": "university"
+  },
+  {
+    "name": "University of Florida",
+    "city": "Gainesville",
+    "state": "FL",
+    "type": "university"
+  },
+  {
+    "name": "University of Georgia",
+    "city": "Athens",
+    "state": "GA",
+    "type": "university"
+  },
+  {
+    "name": "University of Illinois at Urbana-Champaign",
+    "city": "Champaign",
+    "state": "IL",
+    "type": "university"
+  },
+  {
+    "name": "University of Iowa",
+    "city": "Iowa City",
+    "state": "IA",
+    "type": "university"
+  },
+  {
+    "name": "University of Kansas",
+    "city": "Lawrence",
+    "state": "KS",
+    "type": "university"
+  },
+  {
+    "name": "University of Kentucky",
+    "city": "Lexington",
+    "state": "KY",
+    "type": "university"
+  },
+  {
+    "name": "University of Maine",
+    "city": "Orono",
+    "state": "ME",
+    "type": "university"
+  },
+  {
+    "name": "University of Manchester",
+    "city": "Manchester",
+    "state": "UK",
+    "type": "university"
+  },
+  {
+    "name": "University of Maryland",
+    "city": "College Park",
+    "state": "MD",
+    "type": "university"
+  },
+  {
+    "name": "University of Massachusetts Amherst",
+    "city": "Amherst",
+    "state": "MA",
+    "type": "university"
+  },
+  {
+    "name": "University of Melbourne",
+    "city": "Melbourne",
+    "state": "Australia",
+    "type": "university"
+  },
+  {
+    "name": "University of Michigan",
+    "city": "Ann Arbor",
+    "state": "MI",
+    "type": "university"
+  },
+  {
+    "name": "University of Minnesota",
+    "city": "Minneapolis",
+    "state": "MN",
+    "type": "university"
+  },
+  {
+    "name": "University of Mississippi",
+    "city": "Oxford",
+    "state": "MS",
+    "type": "university"
+  },
+  {
+    "name": "University of Missouri",
+    "city": "Columbia",
+    "state": "MO",
+    "type": "university"
+  },
+  {
+    "name": "University of Nebraska-Lincoln",
+    "city": "Lincoln",
+    "state": "NE",
+    "type": "university"
+  },
+  {
+    "name": "University of New Hampshire",
+    "city": "Durham",
+    "state": "NH",
+    "type": "university"
+  },
+  {
+    "name": "University of North Carolina at Chapel Hill",
+    "city": "Chapel Hill",
+    "state": "NC",
+    "type": "university"
+  },
+  {
+    "name": "University of Notre Dame",
+    "city": "Notre Dame",
+    "state": "IN",
+    "type": "university"
+  },
+  {
+    "name": "University of Oklahoma",
+    "city": "Norman",
+    "state": "OK",
+    "type": "university"
+  },
+  {
+    "name": "University of Oregon",
+    "city": "Eugene",
+    "state": "OR",
+    "type": "university"
+  },
+  {
+    "name": "University of Oxford",
+    "city": "Oxford",
+    "state": "UK",
+    "type": "university"
+  },
+  {
+    "name": "University of Pennsylvania",
+    "city": "Philadelphia",
+    "state": "PA",
+    "type": "university"
+  },
+  {
+    "name": "University of Pittsburgh",
+    "city": "Pittsburgh",
+    "state": "PA",
+    "type": "university"
+  },
+  {
+    "name": "University of Rhode Island",
+    "city": "Kingston",
+    "state": "RI",
+    "type": "university"
+  },
+  {
+    "name": "University of South Carolina",
+    "city": "Columbia",
+    "state": "SC",
+    "type": "university"
+  },
+  {
+    "name": "University of St Andrews",
+    "city": "St Andrews",
+    "state": "UK",
+    "type": "university"
+  },
+  {
+    "name": "University of Sydney",
+    "city": "Sydney",
+    "state": "Australia",
+    "type": "university"
+  },
+  {
+    "name": "University of Tennessee",
+    "city": "Knoxville",
+    "state": "TN",
+    "type": "university"
+  },
+  {
+    "name": "University of Texas at Austin",
+    "city": "Austin",
+    "state": "TX",
+    "type": "university"
+  },
+  {
+    "name": "University of Tokyo",
+    "city": "Tokyo",
+    "state": "Japan",
+    "type": "university"
+  },
+  {
+    "name": "University of Toronto",
+    "city": "Toronto",
+    "state": "Canada",
+    "type": "university"
+  },
+  {
+    "name": "University of Utah",
+    "city": "Salt Lake City",
+    "state": "UT",
+    "type": "university"
+  },
+  {
+    "name": "University of Vermont",
+    "city": "Burlington",
+    "state": "VT",
+    "type": "university"
+  },
+  {
+    "name": "University of Virginia",
+    "city": "Charlottesville",
+    "state": "VA",
+    "type": "university"
+  },
+  {
+    "name": "University of Washington",
+    "city": "Seattle",
+    "state": "WA",
+    "type": "university"
+  },
+  {
+    "name": "University of Waterloo",
+    "city": "Waterloo",
+    "state": "Canada",
+    "type": "university"
+  },
+  {
+    "name": "University of Wisconsin-Madison",
+    "city": "Madison",
+    "state": "WI",
+    "type": "university"
+  },
+  {
+    "name": "Vanderbilt University",
+    "city": "Nashville",
+    "state": "TN",
+    "type": "university"
+  },
+  {
+    "name": "Vassar College",
+    "city": "Poughkeepsie",
+    "state": "NY",
+    "type": "college"
+  },
+  {
+    "name": "Villanova University",
+    "city": "Villanova",
+    "state": "PA",
+    "type": "university"
+  },
+  {
+    "name": "Virginia Tech",
+    "city": "Blacksburg",
+    "state": "VA",
+    "type": "university"
+  },
+  {
+    "name": "Wake Forest University",
+    "city": "Winston-Salem",
+    "state": "NC",
+    "type": "university"
+  },
+  {
+    "name": "Washington University in St. Louis",
+    "city": "St. Louis",
+    "state": "MO",
+    "type": "university"
+  },
+  {
+    "name": "Wellesley College",
+    "city": "Wellesley",
+    "state": "MA",
+    "type": "college"
+  },
+  {
+    "name": "Wesleyan University",
+    "city": "Middletown",
+    "state": "CT",
+    "type": "college"
+  },
+  {
+    "name": "Williams College",
+    "city": "Williamstown",
+    "state": "MA",
+    "type": "college"
+  },
+  {
+    "name": "Yale University",
+    "city": "New Haven",
+    "state": "CT",
+    "type": "university"
+  }
+]

@@ -11,12 +11,15 @@ const WAITLIST_FILE = path.join(__dirname, 'waitlist.json');
 const STATS_FILE = path.join(__dirname, 'stats.json');
 const CERTS_FILE = path.join(__dirname, 'certificates.json');
 const PUBLISHERS_FILE = path.join(__dirname, 'publishers.json');
+const ACCOUNTS_FILE = path.join(__dirname, 'accounts.json');
+const SCHOOLS_FILE = path.join(__dirname, 'schools.json');
 const UPLOAD_DIR = path.join(os.tmpdir(), 'inkstain-uploads');
 
 if (!fs.existsSync(WAITLIST_FILE)) fs.writeFileSync(WAITLIST_FILE, '[]');
 if (!fs.existsSync(STATS_FILE)) fs.writeFileSync(STATS_FILE, JSON.stringify({ certificates: 3, hours: 12 }));
 if (!fs.existsSync(CERTS_FILE)) fs.writeFileSync(CERTS_FILE, '[]');
 if (!fs.existsSync(PUBLISHERS_FILE)) fs.writeFileSync(PUBLISHERS_FILE, '[]');
+if (!fs.existsSync(ACCOUNTS_FILE)) fs.writeFileSync(ACCOUNTS_FILE, '[]');
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
 const MIME = {
@@ -266,6 +269,58 @@ const server = http.createServer((req, res) => {
       res.end(JSON.stringify({ verified: false, reason: 'Certificate not found.' }));
     }
     return;
+  }
+
+  // GET /api/schools
+  if (pathname === '/api/schools' && req.method === 'GET') {
+    const schools = fs.readFileSync(SCHOOLS_FILE, 'utf8');
+    res.writeHead(200, {'Content-Type':'application/json'});
+    res.end(schools);
+    return;
+  }
+
+  // POST /api/accounts
+  if (pathname === '/api/accounts' && req.method === 'POST') {
+    let body = '';
+    req.on('data', c => body += c);
+    req.on('end', () => {
+      try {
+        const { name, email, password, type, genre, school } = JSON.parse(body);
+        if (!name || !email || !password) {
+          res.writeHead(400, {'Content-Type':'application/json'});
+          res.end(JSON.stringify({error:'Name, email and password are required'}));
+          return;
+        }
+        const accounts = JSON.parse(fs.readFileSync(ACCOUNTS_FILE));
+        if (accounts.find(a => a.email === email)) {
+          res.writeHead(400, {'Content-Type':'application/json'});
+          res.end(JSON.stringify({error:'An account with this email already exists'}));
+          return;
+        }
+        accounts.push({
+          id: crypto.randomBytes(8).toString('hex'),
+          name, email,
+          password_hash: crypto.createHash('sha256').update(password).digest('hex'),
+          type: type || 'author',
+          genre: genre || '',
+          school: school || '',
+          created_at: new Date().toISOString()
+        });
+        fs.writeFileSync(ACCOUNTS_FILE, JSON.stringify(accounts, null, 2));
+        console.log(`✦ New account: ${email} [${type}]${school ? ' @ ' + school : ''}`);
+        res.writeHead(200, {'Content-Type':'application/json'});
+        res.end(JSON.stringify({ok: true}));
+      } catch(err) {
+        res.writeHead(500, {'Content-Type':'application/json'});
+        res.end(JSON.stringify({error:'Server error'}));
+      }
+    });
+    return;
+  }
+
+  // Join page
+  if (pathname === '/join' || pathname === '/join.html') {
+    serveStatic(res, path.join(__dirname, 'join.html')); return;
   }
 
   // Publisher pages
