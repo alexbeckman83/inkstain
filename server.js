@@ -173,7 +173,9 @@ const server = http.createServer((req, res) => {
           docxPath, author, title, disclosure, trailPath, note
         ]);
 
+        let stdout = '';
         let stderr = '';
+        proc.stdout.on('data', d => stdout += d.toString());
         proc.stderr.on('data', d => stderr += d.toString());
 
         proc.on('close', code => {
@@ -214,22 +216,23 @@ const server = http.createServer((req, res) => {
             fs.writeFileSync(STATS_FILE, JSON.stringify(stats));
           } catch {}
           // Store certificate hash for verification
-          try {
-            const captureDate = new Date().toLocaleDateString('en-US', {month:'long',day:'numeric',year:'numeric'});
-            const hashInput = `${author}:${title}::${captureDate}`;
-            const certHash = crypto.createHash('sha256').update(hashInput).digest('hex').slice(0, 48);
-            const certs = JSON.parse(fs.readFileSync(CERTS_FILE));
-            certs.push({
-              hash: certHash,
-              author,
-              title,
-              disclosure,
-              generated_at: captureDate,
-              trail_summary: trailJson ? (() => { try { return JSON.parse(trailJson); } catch(e) { return {}; } })() : {},
-              author_note: note || ''
-            });
-            fs.writeFileSync(CERTS_FILE, JSON.stringify(certs, null, 2));
-          } catch(e) { console.error('Cert storage error:', e); }
+          const hashMatch = stdout.match(/INKSTAIN_HASH:([a-f0-9]+)/);
+          const certHash = hashMatch ? hashMatch[1] : null;
+          if (certHash) {
+            try {
+              const certs = JSON.parse(fs.readFileSync(CERTS_FILE));
+              certs.push({
+                hash: certHash,
+                author,
+                title,
+                disclosure,
+                generated_at: new Date().toLocaleDateString('en-US', {month:'long',day:'numeric',year:'numeric'}),
+                trail_summary: trailJson ? (() => { try { return JSON.parse(trailJson); } catch(e) { return {}; } })() : {},
+                author_note: note || ''
+              });
+              fs.writeFileSync(CERTS_FILE, JSON.stringify(certs, null, 2));
+            } catch(e) { console.error('Cert storage error:', e); }
+          }
           console.log(`✦ Certificate: "${title}" by ${author} [${disclosure}]${trailJson ? ' +Trail' : ''}${note ? ' +Note' : ''}`);
         });
 

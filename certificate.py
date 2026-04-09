@@ -353,6 +353,9 @@ def generate_certificate_pdf(author, title, metadata, trail_summary, author_note
     c.drawCentredString(W/2, 0.48*inch, "inkstain.ai   ·   AI Provenance for Authors")
     c.setFillAlpha(1.0)
 
+    # Print hash to stdout so server.js can capture it
+    print(f"INKSTAIN_HASH:{doc_hash}")
+
     c.save()
     return buffer.getvalue()
 
