@@ -83,6 +83,10 @@ async function initDB() {
     ALTER TABLE publishers ADD COLUMN IF NOT EXISTS seat_count INTEGER DEFAULT 0;
     ALTER TABLE publishers ADD COLUMN IF NOT EXISTS trial_ends_at TIMESTAMPTZ;
     ALTER TABLE publishers ADD COLUMN IF NOT EXISTS subscribed_at TIMESTAMPTZ;
+    ALTER TABLE publishers ADD COLUMN IF NOT EXISTS reset_token TEXT;
+    ALTER TABLE publishers ADD COLUMN IF NOT EXISTS reset_token_expires_at TIMESTAMPTZ;
+    ALTER TABLE publishers ADD COLUMN IF NOT EXISTS logo_url TEXT;
+    ALTER TABLE publishers ADD COLUMN IF NOT EXISTS website_url TEXT;
   `);
   console.log('✦ Database ready');
 }
@@ -537,6 +541,9 @@ const server = http.createServer((req, res) => {
   }
   if (pathname === '/publishers') { serveStatic(res, path.join(__dirname, 'publishers.html')); return; }
   if (pathname === '/publishers/signup') { serveStatic(res, path.join(__dirname, 'publishers-signup.html')); return; }
+  if (pathname === '/publishers/login') { serveStatic(res, path.join(__dirname, 'publishers-login.html')); return; }
+  if (pathname === '/publishers/forgot-password') { serveStatic(res, path.join(__dirname, 'publishers-forgot-password.html')); return; }
+  if (pathname === '/publishers/reset-password') { serveStatic(res, path.join(__dirname, 'publishers-reset-password.html')); return; }
   if (pathname === '/publishers/dashboard') { serveStatic(res, path.join(__dirname, 'publishers-dashboard.html')); return; }
 
   // ── Publisher API ────────────────────────────────────────────────────────────
@@ -568,6 +575,101 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // POST /api/publishers/login
+  if (pathname === '/api/publishers/login' && req.method === 'POST') {
+    let body = '';
+    req.on('data', c => body += c);
+    req.on('end', async () => {
+      try {
+        const { email, password } = JSON.parse(body);
+        if (!email || !password) { json(res, 400, {error:'Missing fields'}); return; }
+        const result = await pool.query('SELECT * FROM publishers WHERE email=$1', [email]);
+        const pub = result.rows[0];
+        const passwordHash = crypto.createHash('sha256').update(password).digest('hex');
+        if (!pub || pub.password_hash !== passwordHash) {
+          json(res, 401, {error:'Invalid email or password'}); return;
+        }
+        const token = crypto.randomBytes(24).toString('hex');
+        const expires = Date.now() + 30 * 24 * 60 * 60 * 1000;
+        await pool.query(
+          'UPDATE publishers SET session_token=$1, session_expires=$2 WHERE id=$3',
+          [token, expires, pub.id]
+        );
+        console.log(`✦ Publisher login: ${email}`);
+        json(res, 200, {token, publisherId: pub.id, name: pub.name});
+      } catch(e) { console.error(e); json(res, 500, {error:'Server error'}); }
+    });
+    return;
+  }
+
+  // POST /api/publishers/forgot-password
+  if (pathname === '/api/publishers/forgot-password' && req.method === 'POST') {
+    let body = '';
+    req.on('data', c => body += c);
+    req.on('end', async () => {
+      try {
+        const { email } = JSON.parse(body);
+        if (!email) { json(res, 200, {ok:true}); return; }
+        const result = await pool.query('SELECT * FROM publishers WHERE email=$1', [email]);
+        if (result.rows.length > 0) {
+          const resetToken = crypto.randomBytes(32).toString('hex');
+          const resetExpires = new Date(Date.now() + 60 * 60 * 1000);
+          await pool.query(
+            'UPDATE publishers SET reset_token=$1, reset_token_expires_at=$2 WHERE email=$3',
+            [resetToken, resetExpires, email]
+          );
+          const resetLink = `https://inkstain.ai/publishers/reset-password?token=${resetToken}`;
+          sendEmail(email, 'Reset your Inkstain password', `
+<!DOCTYPE html><html><head><meta charset="UTF-8"></head>
+<body style="background:#f5f2eb;margin:0;padding:40px 20px;font-family:Georgia,serif;">
+  <div style="max-width:560px;margin:0 auto;">
+    <div style="background:#1B2A3B;padding:32px;text-align:center;margin-bottom:32px;">
+      <span style="font-size:28px;font-weight:700;color:#f5f2eb;letter-spacing:-.5px;">Ink<span style="color:#c8956b;">stain</span></span>
+    </div>
+    <h1 style="font-size:24px;color:#1B2A3B;margin-bottom:8px;">Reset your password.</h1>
+    <p style="font-size:17px;color:rgba(27,42,59,.6);margin-bottom:32px;">Click the link below to set a new password. This link expires in 1 hour.</p>
+    <a href="${resetLink}" style="display:inline-block;background:#1B2A3B;color:#f5f2eb;padding:14px 28px;text-decoration:none;font-size:16px;margin-bottom:24px;">
+      Reset password →
+    </a>
+    <p style="font-size:13px;color:rgba(27,42,59,.35);margin-top:24px;">If you didn't request this, you can safely ignore this email.</p>
+    <p style="font-size:13px;color:rgba(27,42,59,.3);text-align:center;margin-top:32px;font-style:italic;">The written word will prevail.</p>
+  </div>
+</body></html>`);
+          console.log(`✦ Password reset requested: ${email}`);
+        }
+        json(res, 200, {ok:true});
+      } catch(e) { console.error(e); json(res, 500, {error:'Server error'}); }
+    });
+    return;
+  }
+
+  // POST /api/publishers/reset-password
+  if (pathname === '/api/publishers/reset-password' && req.method === 'POST') {
+    let body = '';
+    req.on('data', c => body += c);
+    req.on('end', async () => {
+      try {
+        const { token, password } = JSON.parse(body);
+        if (!token || !password) { json(res, 400, {error:'Missing fields'}); return; }
+        const result = await pool.query(
+          'SELECT * FROM publishers WHERE reset_token=$1 AND reset_token_expires_at > NOW()',
+          [token]
+        );
+        if (!result.rows[0]) {
+          json(res, 400, {error:'Reset link is invalid or has expired'}); return;
+        }
+        const passwordHash = crypto.createHash('sha256').update(password).digest('hex');
+        await pool.query(
+          'UPDATE publishers SET password_hash=$1, reset_token=NULL, reset_token_expires_at=NULL WHERE id=$2',
+          [passwordHash, result.rows[0].id]
+        );
+        console.log(`✦ Password reset complete: ${result.rows[0].email}`);
+        json(res, 200, {ok:true});
+      } catch(e) { console.error(e); json(res, 500, {error:'Server error'}); }
+    });
+    return;
+  }
+
   // GET /api/publishers/dashboard
   if (pathname === '/api/publishers/dashboard' && req.method === 'GET') {
     (async () => {
@@ -583,6 +685,10 @@ const server = http.createServer((req, res) => {
       json(res, 200, {
         ok: true,
         org: pub.org,
+        name: pub.name,
+        email: pub.email,
+        logo_url: pub.logo_url || '',
+        website_url: pub.website_url || '',
         invite_code: pub.id,
         policy: pub.policy || {},
         contributors,
@@ -639,6 +745,27 @@ const server = http.createServer((req, res) => {
           [JSON.stringify({ requires_trail, disclosure_level, accepts_ai }), pub.id]
         );
         json(res, 200, {ok:true});
+      } catch(e) { console.error(e); json(res, 500, {error:'Server error'}); }
+    });
+    return;
+  }
+
+  // PUT /api/publishers/profile
+  if (pathname === '/api/publishers/profile' && req.method === 'PUT') {
+    let body = '';
+    req.on('data', c => body += c);
+    req.on('end', async () => {
+      try {
+        const pub = await pubFromToken(req.headers['authorization']);
+        if (!pub) { json(res, 401, {error:'Unauthorized'}); return; }
+        const { name, logo_url, website_url, contact_email } = JSON.parse(body);
+        await pool.query(
+          'UPDATE publishers SET name=$1, logo_url=$2, website_url=$3, email=COALESCE($4, email) WHERE id=$5',
+          [name||pub.name, logo_url||'', website_url||'', contact_email||pub.email, pub.id]
+        );
+        const updated = await pool.query('SELECT * FROM publishers WHERE id=$1', [pub.id]);
+        const p = updated.rows[0];
+        json(res, 200, {success:true, publisher:{id:p.id, org:p.org, name:p.name, email:p.email, logo_url:p.logo_url, website_url:p.website_url}});
       } catch(e) { console.error(e); json(res, 500, {error:'Server error'}); }
     });
     return;

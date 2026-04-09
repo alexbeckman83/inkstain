@@ -1,0 +1,98 @@
+Here's the prompt:
+
+REPLIT AGENT PROMPT — Publisher Sign-In + Publisher Profile Tab
+Two features to add. Do not touch any existing Stripe, billing, or certificate logic.
+
+PART 1 — Publisher Sign-In at /publishers/login
+Create a sign-in page at inkstain.ai/publishers/login that matches the existing Inkstain design system exactly — parchment #f5f2eb background, ink #1B2A3B, amber #c8956b, Playfair Display + EB Garamond, same card style as the publisher signup page.
+Page layout:
+
+Inkstain logo top left, links to /
+Centered card with:
+
+Heading: "Welcome back"
+Subheading: "Sign in to your publisher dashboard"
+Email input
+Password input
+"Sign in" button (full width, ink background)
+"Forgot your password?" link below button
+"Don't have an account? Create one →" link to /publishers/signup
+
+
+
+POST /api/publishers/login endpoint:
+
+Body: { email, password }
+Look up publisher by email in Postgres
+Compare password hash (use same hashing method as signup)
+On success: generate new session token, set expiry 30 days, update session_token and session_expires_at in DB, return { token, publisherId, name }
+On failure: return 401 { error: 'Invalid email or password' }
+Store token in localStorage as publisher_token (same as existing dashboard auth)
+On success redirect to /publishers/dashboard
+
+Forgot password — magic link flow:
+
+"Forgot your password?" links to /publishers/forgot-password
+Simple page: email input + "Send reset link" button
+POST /api/publishers/forgot-password:
+
+Generate a secure random token, store in DB as reset_token with reset_token_expires_at = 1 hour from now
+Add columns if needed: reset_token TEXT, reset_token_expires_at TIMESTAMPTZ
+Send email via Resend from noreply@inkstain.ai with subject "Reset your Inkstain password"
+Email body: clean, on-brand, single link: https://inkstain.ai/publishers/reset-password?token=TOKEN
+Always return success message (don't reveal if email exists)
+
+
+/publishers/reset-password?token=TOKEN page:
+
+New password + confirm password inputs
+POST /api/publishers/reset-password: validate token not expired, update password hash, clear reset token, return success
+On success: redirect to /publishers/login with message "Password updated. Please sign in."
+
+
+
+Update the publishers landing page nav:
+
+"Publisher login →" button in nav already exists — make sure it links to /publishers/login
+
+
+PART 2 — Publisher Profile Tab (Tab 7 in dashboard)
+Add a 7th tab "Profile" to the publisher dashboard after Billing.
+Profile form fields:
+
+Organisation name (pre-filled from DB)
+Logo URL (text input — paste a URL, we display it as a preview)
+Website URL
+Primary contact email (pre-filled from DB)
+"Save changes" button
+
+PUT /api/publishers/profile endpoint:
+
+Auth: Bearer token
+Body: { name, logo_url, website_url, contact_email }
+Add columns if needed:
+
+sql  ALTER TABLE publishers ADD COLUMN IF NOT EXISTS logo_url TEXT;
+  ALTER TABLE publishers ADD COLUMN IF NOT EXISTS website_url TEXT;
+
+Update publisher record in DB
+Return { success: true, publisher }
+
+Logo preview:
+
+When a URL is entered in the logo field, show a small live preview image (max 80px height) below the input
+If URL is invalid or image fails to load, show a placeholder with amber border and text "Image not found"
+
+Logo display in dashboard:
+
+If logo_url is set, show the logo image in the sidebar above the organisation name (max 120px wide, max 40px tall, object-fit contain)
+If no logo set, show organisation name as text as it does now
+
+Style: match existing dashboard exactly — parchment background, ink sidebar, amber accents, Playfair Display headings.
+
+After both parts are complete:
+
+Confirm /publishers/login renders and accepts credentials
+Confirm /publishers/forgot-password renders
+Confirm Profile tab appears in dashboard
+Confirm logo preview works on URL input

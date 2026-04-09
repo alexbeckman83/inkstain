@@ -15,6 +15,7 @@
     .sidebar-logo-text{font-family:'Playfair Display',serif;font-weight:700;font-size:20px;color:var(--parch);}
     .sidebar-logo-text span{color:var(--amber);}
     .sidebar-org{font-size:12px;color:rgba(245,242,235,.35);margin-top:.25rem;}
+    .sidebar-pub-logo{max-width:120px;max-height:40px;object-fit:contain;display:block;margin-bottom:.5rem;}
     .sidebar-nav{padding:1.5rem 0;flex:1;}
     .sidebar-section{font-size:10px;letter-spacing:2px;text-transform:uppercase;color:rgba(245,242,235,.25);padding:.5rem 1.5rem;margin-bottom:.25rem;}
     .nav-item{display:flex;align-items:center;gap:.75rem;padding:.75rem 1.5rem;font-size:15px;color:rgba(245,242,235,.55);cursor:pointer;transition:all .2s;border:none;background:none;width:100%;text-align:left;font-family:'EB Garamond',serif;}
@@ -103,6 +104,7 @@
   <div class="sidebar">
     <div class="sidebar-logo">
       <div class="sidebar-logo-text">Ink<span>stain</span></div>
+      <div id="sidebar-pub-logo-wrap"></div>
       <div class="sidebar-org" id="sidebar-org">Publisher Dashboard</div>
     </div>
     <div class="sidebar-nav">
@@ -114,6 +116,7 @@
       <div class="sidebar-section" style="margin-top:1rem;">Settings</div>
       <button class="nav-item" onclick="setTab('policy',this)">⊞ &nbsp;Disclosure policy</button>
       <button class="nav-item" onclick="setTab('billing',this)">$ &nbsp;Billing</button>
+      <button class="nav-item" onclick="setTab('profile',this)">◻ &nbsp;Profile</button>
     </div>
     <div class="sidebar-footer">
       <button class="signout-btn" onclick="signOut()">Sign out</button>
@@ -154,7 +157,7 @@ async function load() {
     if (dr.status === 401) { signOut(); return; }
     data = await dr.json();
     if (br.ok) billing = await br.json();
-    document.getElementById('sidebar-org').textContent = data.org || pub.org || 'Publisher';
+    updateSidebarLogo(data.logo_url, data.org || pub.org || 'Publisher');
     render();
   } catch(e) {
     document.getElementById('main').innerHTML = '<div class="empty">Could not load. <a href="/publishers/signup" style="color:var(--amber)">Sign in →</a></div>';
@@ -181,6 +184,7 @@ function render() {
       <button class="tab ${tab==='invite'?'active':''}" onclick="tab='invite';render()">Invite</button>
       <button class="tab ${tab==='policy'?'active':''}" onclick="tab='policy';render()">Policy</button>
       <button class="tab ${tab==='billing'?'active':''}" onclick="tab='billing';render()">Billing</button>
+      <button class="tab ${tab==='profile'?'active':''}" onclick="tab='profile';render()">Profile</button>
     </div>`;
 
   if (tab === 'overview') {
@@ -358,7 +362,106 @@ function render() {
     }
   }
 
+  if (tab === 'profile') {
+    h += `
+      <div class="panel">
+        <div class="panel-title">Organisation profile</div>
+        <div class="field-row" style="display:grid;grid-template-columns:1fr 1fr;gap:1.25rem;margin-bottom:1.25rem;">
+          <div>
+            <label class="policy-label" for="pr-org">Organisation name</label>
+            <input type="text" id="pr-org" value="${esc(data.org||'')}" style="width:100%;padding:10px 12px;font-family:'EB Garamond',serif;font-size:16px;border:.5px solid rgba(27,42,59,.2);background:var(--parch-dk);color:var(--ink);outline:none;">
+          </div>
+          <div>
+            <label class="policy-label" for="pr-name">Primary contact name</label>
+            <input type="text" id="pr-name" value="${esc(data.name||'')}" style="width:100%;padding:10px 12px;font-family:'EB Garamond',serif;font-size:16px;border:.5px solid rgba(27,42,59,.2);background:var(--parch-dk);color:var(--ink);outline:none;">
+          </div>
+        </div>
+        <div style="margin-bottom:1.25rem;">
+          <label class="policy-label" for="pr-email">Primary contact email</label>
+          <input type="email" id="pr-email" value="${esc(data.email||'')}" style="width:100%;padding:10px 12px;font-family:'EB Garamond',serif;font-size:16px;border:.5px solid rgba(27,42,59,.2);background:var(--parch-dk);color:var(--ink);outline:none;">
+        </div>
+        <div style="margin-bottom:1.25rem;">
+          <label class="policy-label" for="pr-website">Website URL</label>
+          <input type="url" id="pr-website" value="${esc(data.website_url||'')}" placeholder="https://yourpublication.com" style="width:100%;padding:10px 12px;font-family:'EB Garamond',serif;font-size:16px;border:.5px solid rgba(27,42,59,.2);background:var(--parch-dk);color:var(--ink);outline:none;">
+        </div>
+        <div style="margin-bottom:1.5rem;">
+          <label class="policy-label" for="pr-logo">Logo URL</label>
+          <input type="url" id="pr-logo" value="${esc(data.logo_url||'')}" placeholder="https://yourpublication.com/logo.png" oninput="previewLogo(this.value)" style="width:100%;padding:10px 12px;font-family:'EB Garamond',serif;font-size:16px;border:.5px solid rgba(27,42,59,.2);background:var(--parch-dk);color:var(--ink);outline:none;margin-bottom:.75rem;">
+          <div id="logo-preview-wrap" style="margin-top:.75rem;">
+            ${data.logo_url ? `<img src="${esc(data.logo_url)}" id="logo-preview-img" style="max-height:80px;max-width:240px;object-fit:contain;border:.5px solid rgba(27,42,59,.1);padding:8px;" onerror="this.style.display='none';document.getElementById('logo-preview-fail').style.display='block';">
+            <div id="logo-preview-fail" style="display:none;border:1.5px solid var(--amber);padding:12px 16px;font-size:13px;color:var(--amber);font-style:italic;">Image not found — check the URL</div>` : '<div id="logo-preview-fail" style="display:none;border:1.5px solid var(--amber);padding:12px 16px;font-size:13px;color:var(--amber);font-style:italic;">Image not found — check the URL</div>'}
+          </div>
+        </div>
+        <button class="btn-save" onclick="saveProfile()">Save changes</button>
+        <p id="profile-status" style="font-size:13px;color:var(--amber);margin-top:.75rem;min-height:1.2em;font-style:italic;"></p>
+      </div>`;
+  }
+
   document.getElementById('main').innerHTML = h;
+
+  if (tab === 'profile' && data.logo_url) {
+    setTimeout(() => previewLogo(data.logo_url), 0);
+  }
+}
+
+function previewLogo(url) {
+  const wrap = document.getElementById('logo-preview-wrap');
+  const fail = document.getElementById('logo-preview-fail');
+  if (!wrap) return;
+  if (!url) {
+    wrap.innerHTML = '<div id="logo-preview-fail" style="display:none;border:1.5px solid var(--amber);padding:12px 16px;font-size:13px;color:var(--amber);font-style:italic;">Image not found — check the URL</div>';
+    return;
+  }
+  const img = new Image();
+  img.onload = () => {
+    wrap.innerHTML = `<img src="${url}" style="max-height:80px;max-width:240px;object-fit:contain;border:.5px solid rgba(27,42,59,.1);padding:8px;">`;
+  };
+  img.onerror = () => {
+    wrap.innerHTML = '<div style="border:1.5px solid var(--amber);padding:12px 16px;font-size:13px;color:var(--amber);font-style:italic;">Image not found — check the URL</div>';
+  };
+  img.src = url;
+}
+
+async function saveProfile() {
+  const st = document.getElementById('profile-status');
+  st.textContent = 'Saving…';
+  try {
+    const r = await fetch('/api/publishers/profile', {
+      method: 'PUT',
+      headers: {'Content-Type':'application/json','Authorization':`Bearer ${session}`},
+      body: JSON.stringify({
+        name: document.getElementById('pr-name')?.value.trim(),
+        logo_url: document.getElementById('pr-logo')?.value.trim(),
+        website_url: document.getElementById('pr-website')?.value.trim(),
+        contact_email: document.getElementById('pr-email')?.value.trim()
+      })
+    });
+    const d = await r.json();
+    if (d.success) {
+      data.logo_url = d.publisher.logo_url;
+      data.name = d.publisher.name;
+      data.email = d.publisher.email;
+      data.website_url = d.publisher.website_url;
+      updateSidebarLogo(d.publisher.logo_url, d.publisher.org || data.org);
+      st.textContent = '✦ Profile saved.';
+      setTimeout(() => st.textContent = '', 3000);
+    } else {
+      st.textContent = 'Could not save.';
+    }
+  } catch(e) { st.textContent = 'Could not connect.'; }
+}
+
+function updateSidebarLogo(logoUrl, orgName) {
+  const wrap = document.getElementById('sidebar-pub-logo-wrap');
+  const orgEl = document.getElementById('sidebar-org');
+  if (!wrap) return;
+  if (logoUrl) {
+    wrap.innerHTML = `<img src="${logoUrl}" class="sidebar-pub-logo" onerror="this.style.display='none'">`;
+    if (orgEl) orgEl.textContent = orgName || '';
+  } else {
+    wrap.innerHTML = '';
+    if (orgEl) orgEl.textContent = orgName || '';
+  }
 }
 
 async function startCheckout(plan) {
