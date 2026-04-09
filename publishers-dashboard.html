@@ -294,10 +294,10 @@ function render() {
         ${trialEnds ? `<p style="font-size:14px;color:var(--amber);margin-bottom:1.5rem;font-style:italic;">Free trial — ${trialDaysLeft} day${trialDaysLeft===1?'':'s'} remaining.</p>` : ''}
         <div class="plan-cards">
           <div class="plan-card">
-            <div class="plan-name">Institution</div>
+            <div class="plan-name">Campus</div>
             <div class="plan-price">$99<span>/mo</span></div>
             <ul class="plan-features">
-              <li>Up to 100 users included</li>
+              <li>Up to 100 students or staff included</li>
               <li>+$5/head/mo after 100</li>
               <li>Student + faculty accounts</li>
               <li>Department dashboard</li>
@@ -307,7 +307,7 @@ function render() {
             <button class="btn-upgrade" onclick="startCheckout('institution')">Upgrade →</button>
           </div>
           <div class="plan-card featured">
-            <div class="plan-name">Newsroom &amp; Publisher</div>
+            <div class="plan-name">Byline</div>
             <div class="plan-price">$199<span>/mo</span></div>
             <ul class="plan-features">
               <li>Up to 25 contributors included</li>
@@ -320,11 +320,12 @@ function render() {
             <button class="btn-upgrade featured" onclick="startCheckout('newsroom')">Upgrade →</button>
           </div>
           <div class="plan-card">
-            <div class="plan-name">Agency</div>
+            <div class="plan-name">Imprint</div>
             <div class="plan-price">$499<span>/mo</span></div>
             <ul class="plan-features">
-              <li>Up to 100 clients</li>
-              <li>Custom pricing above 100</li>
+              <li>Up to 100 clients included</li>
+              <li>+$5/head/mo after 100</li>
+              <li>Everything in Byline</li>
               <li>Agency dashboard</li>
               <li>Client Trail visibility</li>
               <li>Priority support</li>
@@ -336,7 +337,7 @@ function render() {
         <p id="billing-status-msg" style="font-size:13px;color:var(--amber);margin-top:.75rem;text-align:center;min-height:1.2em;font-style:italic;"></p>
       </div>`;
     } else {
-      const planLabel = {institution:'Institution',newsroom:'Newsroom & Publisher',agency:'Agency'}[plan] || plan;
+      const planLabel = {institution:'Campus',newsroom:'Byline',agency:'Imprint'}[plan] || plan;
       const badgeClass = {active:'badge-active',trialing:'badge-trial',past_due:'badge-past_due',canceled:'badge-canceled'}[status] || 'badge-trial';
       const pct = seatLimit ? Math.round(seatCount / seatLimit * 100) : 0;
       const nearLimit = seatLimit && (seatLimit - seatCount) <= 3;
