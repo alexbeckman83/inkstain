@@ -5,23 +5,69 @@ const url = require('url');
 const { spawn } = require('child_process');
 const os = require('os');
 const crypto = require('crypto');
+const { Pool } = require('pg');
 
 const PORT = process.env.PORT || 3000;
-const WAITLIST_FILE = path.join(__dirname, 'waitlist.json');
-const STATS_FILE = path.join(__dirname, 'stats.json');
-const CERTS_FILE = path.join(__dirname, 'certificates.json');
-const PUBLISHERS_FILE = path.join(__dirname, 'publishers.json');
-const ACCOUNTS_FILE = path.join(__dirname, 'accounts.json');
 const SCHOOLS_FILE = path.join(__dirname, 'schools.json');
 const UPLOAD_DIR = path.join(os.tmpdir(), 'inkstain-uploads');
 
-if (!fs.existsSync(WAITLIST_FILE)) fs.writeFileSync(WAITLIST_FILE, '[]');
-if (!fs.existsSync(STATS_FILE)) fs.writeFileSync(STATS_FILE, JSON.stringify({ certificates: 3, hours: 12 }));
-if (!fs.existsSync(CERTS_FILE)) fs.writeFileSync(CERTS_FILE, '[]');
-if (!fs.existsSync(PUBLISHERS_FILE)) fs.writeFileSync(PUBLISHERS_FILE, '[]');
-if (!fs.existsSync(ACCOUNTS_FILE)) fs.writeFileSync(ACCOUNTS_FILE, '[]');
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
+// ── Database ──────────────────────────────────────────────────────────────────
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+
+async function initDB() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS accounts (
+      id TEXT PRIMARY KEY,
+      name TEXT,
+      email TEXT UNIQUE,
+      password_hash TEXT,
+      type TEXT,
+      genre TEXT,
+      school TEXT,
+      invite_code TEXT,
+      publisher_id TEXT,
+      session_token TEXT,
+      session_expires BIGINT,
+      created_at TEXT
+    );
+    CREATE TABLE IF NOT EXISTS publishers (
+      id TEXT PRIMARY KEY,
+      org TEXT,
+      pub_type TEXT,
+      name TEXT,
+      role TEXT,
+      email TEXT UNIQUE,
+      password_hash TEXT,
+      policy JSONB DEFAULT '{}',
+      session_token TEXT,
+      session_expires BIGINT,
+      created_at TEXT
+    );
+    CREATE TABLE IF NOT EXISTS certificates (
+      id SERIAL PRIMARY KEY,
+      hash TEXT UNIQUE,
+      author TEXT,
+      title TEXT,
+      disclosure TEXT,
+      generated_at TEXT,
+      trail_summary JSONB DEFAULT '{}',
+      author_note TEXT,
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS waitlist (
+      id SERIAL PRIMARY KEY,
+      email TEXT,
+      source TEXT,
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+  `);
+  console.log('✦ Database ready');
+}
+initDB().catch(console.error);
+
+// ── Email ─────────────────────────────────────────────────────────────────────
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 
 async function sendEmail(to, subject, html) {
@@ -30,29 +76,22 @@ async function sendEmail(to, subject, html) {
     return { ok: true };
   }
   try {
-    const res = await fetch('https://api.resend.com/emails', {
+    const r = await fetch('https://api.resend.com/emails', {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${RESEND_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        from: 'Inkstain <hello@inkstain.ai>',
-        to,
-        subject,
-        html
-      })
+      headers: { 'Authorization': `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: 'Inkstain <hello@inkstain.ai>', to, subject, html })
     });
-    const data = await res.json();
-    if (!res.ok) console.error('[email] Resend error:', data);
+    const data = await r.json();
+    if (!r.ok) console.error('[email] Resend error:', data);
     else console.log(`✦ Email sent to ${to}: ${subject}`);
-    return { ok: res.ok };
+    return { ok: r.ok };
   } catch(err) {
     console.error('[email] Send failed:', err);
     return { ok: false };
   }
 }
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
 const MIME = {
   '.html':'text/html','.css':'text/css','.js':'application/javascript',
   '.svg':'image/svg+xml','.png':'image/png','.jpg':'image/jpeg',
@@ -97,57 +136,72 @@ function serveStatic(res, filePath) {
   });
 }
 
+function json(res, code, obj) {
+  res.writeHead(code, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify(obj));
+}
+
+async function pubFromToken(authHeader) {
+  const token = (authHeader || '').replace('Bearer ', '').trim();
+  if (!token) return null;
+  const r = await pool.query(
+    'SELECT * FROM publishers WHERE session_token=$1 AND session_expires>$2',
+    [token, Date.now()]
+  );
+  return r.rows[0] || null;
+}
+
+// ── Server ────────────────────────────────────────────────────────────────────
 const server = http.createServer((req, res) => {
   const parsed = url.parse(req.url, true);
   const pathname = parsed.pathname;
 
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
 
   // POST /api/waitlist
   if (pathname === '/api/waitlist' && req.method === 'POST') {
     let body = '';
     req.on('data', c => body += c);
-    req.on('end', () => {
+    req.on('end', async () => {
       try {
         const { email } = JSON.parse(body);
-        if (!email || !email.includes('@')) { res.writeHead(400); res.end(JSON.stringify({error:'Invalid email'})); return; }
-        const list = JSON.parse(fs.readFileSync(WAITLIST_FILE));
-        if (!list.find(e => e.email === email)) {
-          list.push({ email, date: new Date().toISOString() });
-          fs.writeFileSync(WAITLIST_FILE, JSON.stringify(list, null, 2));
-          console.log(`✦ Waitlist: ${email} (${list.length} total)`);
-        }
-        res.writeHead(200, {'Content-Type':'application/json'});
-        res.end(JSON.stringify({ok:true}));
-      } catch { res.writeHead(500); res.end('{}'); }
+        if (!email || !email.includes('@')) { json(res, 400, {error:'Invalid email'}); return; }
+        await pool.query(
+          'INSERT INTO waitlist (email, source) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+          [email, 'website']
+        );
+        console.log(`✦ Waitlist: ${email}`);
+        json(res, 200, {ok:true});
+      } catch(e) { console.error(e); json(res, 500, {}); }
     });
     return;
   }
 
-  // GET /api/waitlist
+  // GET /api/waitlist (admin)
   if (pathname === '/api/waitlist' && req.method === 'GET') {
     if (parsed.query.key !== process.env.ADMIN_KEY) { res.writeHead(401); res.end('Unauthorized'); return; }
-    const list = JSON.parse(fs.readFileSync(WAITLIST_FILE));
-    res.writeHead(200, {'Content-Type':'application/json'});
-    res.end(JSON.stringify({ count: list.length, emails: list }));
+    (async () => {
+      const result = await pool.query('SELECT * FROM waitlist ORDER BY created_at DESC');
+      json(res, 200, { count: result.rows.length, emails: result.rows });
+    })().catch(e => { console.error(e); json(res, 500, {}); });
     return;
   }
 
   // GET /api/stats
   if (pathname === '/api/stats' && req.method === 'GET') {
-    const list = JSON.parse(fs.readFileSync(WAITLIST_FILE));
-    const stats = JSON.parse(fs.readFileSync(STATS_FILE));
-    const uniqueAuthors = new Set(list.map(e => e.email)).size;
-    res.writeHead(200, {'Content-Type':'application/json'});
-    res.end(JSON.stringify({
-      manuscripts: uniqueAuthors,
-      certificates: stats.certificates,
-      hours: stats.hours,
-      waitlist: list.length
-    }));
+    (async () => {
+      const certs = await pool.query('SELECT COUNT(*) FROM certificates');
+      const accts = await pool.query('SELECT COUNT(*) FROM accounts');
+      json(res, 200, {
+        certificates: parseInt(certs.rows[0].count),
+        waitlist: parseInt(accts.rows[0].count),
+        manuscripts: parseInt(accts.rows[0].count),
+        hours: 12
+      });
+    })().catch(e => { console.error(e); json(res, 500, {}); });
     return;
   }
 
@@ -160,7 +214,7 @@ const server = http.createServer((req, res) => {
         const body = Buffer.concat(chunks);
         const ct = req.headers['content-type'] || '';
         const bm = ct.match(/boundary=(.+)$/);
-        if (!bm) { res.writeHead(400); res.end(JSON.stringify({error:'Bad request'})); return; }
+        if (!bm) { json(res, 400, {error:'Bad request'}); return; }
 
         const parts = parseMultipart(body, bm[1]);
         const author = (parts.author || '').toString().trim();
@@ -171,15 +225,11 @@ const server = http.createServer((req, res) => {
         const file = parts.file;
 
         if (!author || !title) {
-          res.writeHead(400, {'Content-Type':'application/json'});
-          res.end(JSON.stringify({error:'Author name and manuscript title are required'}));
+          json(res, 400, {error:'Author name and manuscript title are required'});
           return;
         }
-
-        // Need at least a file or a trail
         if (!file && !trailJson) {
-          res.writeHead(400, {'Content-Type':'application/json'});
-          res.end(JSON.stringify({error:'Please upload a manuscript document or import your Trail — or both'}));
+          json(res, 400, {error:'Please upload a manuscript document or import your Trail — or both'});
           return;
         }
 
@@ -187,18 +237,15 @@ const server = http.createServer((req, res) => {
         let docxPath = 'none';
         let trailPath = 'none';
 
-        // Save docx if provided
         if (file) {
           if (!file.filename.match(/\.(docx|doc)$/i)) {
-            res.writeHead(400, {'Content-Type':'application/json'});
-            res.end(JSON.stringify({error:'Please upload a .docx Word document'}));
+            json(res, 400, {error:'Please upload a .docx Word document'});
             return;
           }
           docxPath = path.join(UPLOAD_DIR, `${tempId}.docx`);
           fs.writeFileSync(docxPath, file.data);
         }
 
-        // Save trail JSON if provided
         if (trailJson) {
           trailPath = path.join(UPLOAD_DIR, `${tempId}_trail.json`);
           fs.writeFileSync(trailPath, trailJson);
@@ -220,19 +267,16 @@ const server = http.createServer((req, res) => {
 
           if (code !== 0) {
             console.error('Cert error:', stderr);
-            res.writeHead(500, {'Content-Type':'application/json'});
-            res.end(JSON.stringify({error:'Could not generate certificate. Please check your files and try again.'}));
+            json(res, 500, {error:'Could not generate certificate. Please check your files and try again.'});
             return;
           }
 
-          // Find output file
           const outPath = path.join(UPLOAD_DIR, `${tempId}_trail_certificate.pdf`);
           const altPath = path.join(process.cwd(), `${title.replace(/\s+/g,'_')}_trail_certificate.pdf`);
           const finalPath = fs.existsSync(outPath) ? outPath : altPath;
 
           if (!fs.existsSync(finalPath)) {
-            res.writeHead(500, {'Content-Type':'application/json'});
-            res.end(JSON.stringify({error:'Certificate generation failed'}));
+            json(res, 500, {error:'Certificate generation failed'});
             return;
           }
 
@@ -246,42 +290,30 @@ const server = http.createServer((req, res) => {
             'Content-Length': pdf.length
           });
           res.end(pdf);
-          try {
-            const stats = JSON.parse(fs.readFileSync(STATS_FILE));
-            stats.certificates = (stats.certificates || 0) + 1;
-            fs.writeFileSync(STATS_FILE, JSON.stringify(stats));
-          } catch {}
+
           // Store certificate hash for verification
           const hashMatch = stdout.match(/INKSTAIN_HASH:([a-f0-9]+)/);
           const certHash = hashMatch ? hashMatch[1] : null;
           if (certHash) {
-            try {
-              const certs = JSON.parse(fs.readFileSync(CERTS_FILE));
-              certs.push({
-                hash: certHash,
-                author,
-                title,
-                disclosure,
-                generated_at: new Date().toLocaleDateString('en-US', {month:'long',day:'numeric',year:'numeric'}),
-                trail_summary: trailJson ? (() => { try { return JSON.parse(trailJson); } catch(e) { return {}; } })() : {},
-                author_note: note || ''
-              });
-              fs.writeFileSync(CERTS_FILE, JSON.stringify(certs, null, 2));
-            } catch(e) { console.error('Cert storage error:', e); }
+            const generatedAt = new Date().toLocaleDateString('en-US', {month:'long',day:'numeric',year:'numeric'});
+            let trailSummary = {};
+            if (trailJson) { try { trailSummary = JSON.parse(trailJson); } catch(e) {} }
+            pool.query(
+              'INSERT INTO certificates (hash, author, title, disclosure, generated_at, trail_summary, author_note) VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT (hash) DO NOTHING',
+              [certHash, author, title, disclosure, generatedAt, JSON.stringify(trailSummary), note||'']
+            ).catch(e => console.error('Cert storage error:', e));
           }
           console.log(`✦ Certificate: "${title}" by ${author} [${disclosure}]${trailJson ? ' +Trail' : ''}${note ? ' +Note' : ''}`);
         });
 
         proc.on('error', err => {
           console.error('Process error:', err);
-          res.writeHead(500, {'Content-Type':'application/json'});
-          res.end(JSON.stringify({error:'Server error'}));
+          json(res, 500, {error:'Server error'});
         });
 
       } catch(err) {
         console.error('Trail error:', err);
-        res.writeHead(500, {'Content-Type':'application/json'});
-        res.end(JSON.stringify({error:'Something went wrong. Please try again.'}));
+        json(res, 500, {error:'Something went wrong. Please try again.'});
       }
     });
     return;
@@ -290,15 +322,18 @@ const server = http.createServer((req, res) => {
   // GET /api/verify
   if (pathname === '/api/verify' && req.method === 'GET') {
     const hash = parsed.query.hash || '';
-    const certs = JSON.parse(fs.readFileSync(CERTS_FILE));
-    const cert = certs.find(c => c.hash === hash || c.hash.startsWith(hash));
-    if (cert) {
-      res.writeHead(200, {'Content-Type':'application/json'});
-      res.end(JSON.stringify({ verified: true, ...cert }));
-    } else {
-      res.writeHead(200, {'Content-Type':'application/json'});
-      res.end(JSON.stringify({ verified: false, reason: 'Certificate not found.' }));
-    }
+    (async () => {
+      const result = await pool.query(
+        'SELECT * FROM certificates WHERE hash LIKE $1',
+        [hash + '%']
+      );
+      const cert = result.rows[0];
+      if (cert) {
+        json(res, 200, { verified: true, ...cert });
+      } else {
+        json(res, 200, { verified: false, reason: 'Certificate not found.' });
+      }
+    })().catch(e => { console.error(e); json(res, 500, {verified:false}); });
     return;
   }
 
@@ -306,19 +341,14 @@ const server = http.createServer((req, res) => {
   if (pathname === '/api/sendlink' && req.method === 'POST') {
     let body = '';
     req.on('data', c => body += c);
-    req.on('end', () => {
+    req.on('end', async () => {
       try {
         const { email } = JSON.parse(body);
-        if (!email || !email.includes('@')) {
-          res.writeHead(400, {'Content-Type':'application/json'});
-          res.end(JSON.stringify({error:'Invalid email'}));
-          return;
-        }
-        const list = JSON.parse(fs.readFileSync(WAITLIST_FILE));
-        if (!list.find(e => e.email === email)) {
-          list.push({email, date: new Date().toISOString(), source: 'mobile_sendlink'});
-          fs.writeFileSync(WAITLIST_FILE, JSON.stringify(list, null, 2));
-        }
+        if (!email || !email.includes('@')) { json(res, 400, {error:'Invalid email'}); return; }
+        await pool.query(
+          'INSERT INTO waitlist (email, source) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+          [email, 'mobile_sendlink']
+        );
         console.log(`✦ Mobile send-link: ${email}`);
         sendEmail(email, 'Your Inkstain download link', `
 <!DOCTYPE html>
@@ -349,12 +379,8 @@ const server = http.createServer((req, res) => {
 </body>
 </html>
 `);
-        res.writeHead(200, {'Content-Type':'application/json'});
-        res.end(JSON.stringify({ok: true}));
-      } catch(err) {
-        res.writeHead(500, {'Content-Type':'application/json'});
-        res.end(JSON.stringify({error:'Server error'}));
-      }
+        json(res, 200, {ok:true});
+      } catch(err) { console.error(err); json(res, 500, {error:'Server error'}); }
     });
     return;
   }
@@ -371,32 +397,25 @@ const server = http.createServer((req, res) => {
   if (pathname === '/api/accounts' && req.method === 'POST') {
     let body = '';
     req.on('data', c => body += c);
-    req.on('end', () => {
+    req.on('end', async () => {
       try {
-        const { name, email, password, type, genre, school } = JSON.parse(body);
+        const { name, email, password, type, genre, school, invite_code } = JSON.parse(body);
         if (!name || !email || !password) {
-          res.writeHead(400, {'Content-Type':'application/json'});
-          res.end(JSON.stringify({error:'Name, email and password are required'}));
+          json(res, 400, {error:'Name, email and password are required'});
           return;
         }
-        const accounts = JSON.parse(fs.readFileSync(ACCOUNTS_FILE));
-        if (accounts.find(a => a.email === email)) {
-          res.writeHead(400, {'Content-Type':'application/json'});
-          res.end(JSON.stringify({error:'An account with this email already exists'}));
+        const existing = await pool.query('SELECT id FROM accounts WHERE email=$1', [email]);
+        if (existing.rows.length > 0) {
+          json(res, 400, {error:'An account with this email already exists'});
           return;
         }
-        accounts.push({
-          id: crypto.randomBytes(8).toString('hex'),
-          name, email,
-          password_hash: crypto.createHash('sha256').update(password).digest('hex'),
-          type: type || 'author',
-          genre: genre || '',
-          school: school || '',
-          created_at: new Date().toISOString()
-        });
-        fs.writeFileSync(ACCOUNTS_FILE, JSON.stringify(accounts, null, 2));
+        const id = crypto.randomBytes(8).toString('hex');
+        const passwordHash = crypto.createHash('sha256').update(password).digest('hex');
+        await pool.query(
+          'INSERT INTO accounts (id, name, email, password_hash, type, genre, school, invite_code, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)',
+          [id, name, email, passwordHash, type||'author', genre||'', school||'', invite_code||'', new Date().toISOString()]
+        );
         console.log(`✦ New account: ${email} [${type}]${school ? ' @ ' + school : ''}`);
-        // Send welcome email
         sendEmail(email, 'Welcome to Inkstain — your Trail starts now', `
 <!DOCTYPE html>
 <html>
@@ -432,12 +451,8 @@ const server = http.createServer((req, res) => {
 </body>
 </html>
 `);
-        res.writeHead(200, {'Content-Type':'application/json'});
-        res.end(JSON.stringify({ok: true}));
-      } catch(err) {
-        res.writeHead(500, {'Content-Type':'application/json'});
-        res.end(JSON.stringify({error:'Server error'}));
-      }
+        json(res, 200, {ok:true});
+      } catch(err) { console.error(err); json(res, 500, {error:'Server error'}); }
     });
     return;
   }
@@ -446,53 +461,50 @@ const server = http.createServer((req, res) => {
   if (pathname === '/api/signin' && req.method === 'POST') {
     let body = '';
     req.on('data', c => body += c);
-    req.on('end', () => {
+    req.on('end', async () => {
       try {
         const { email, password } = JSON.parse(body);
-        const accounts = JSON.parse(fs.readFileSync(ACCOUNTS_FILE));
-        const account = accounts.find(a => a.email === email);
+        const result = await pool.query('SELECT * FROM accounts WHERE email=$1', [email]);
+        const account = result.rows[0];
         const passwordHash = crypto.createHash('sha256').update(password).digest('hex');
         if (!account || account.password_hash !== passwordHash) {
-          res.writeHead(401, {'Content-Type':'application/json'});
-          res.end(JSON.stringify({error:'Invalid email or password'}));
+          json(res, 401, {error:'Invalid email or password'});
           return;
         }
         const token = crypto.randomBytes(32).toString('hex');
-        account.session_token = token;
-        account.session_expires = Date.now() + (30 * 24 * 60 * 60 * 1000);
-        fs.writeFileSync(ACCOUNTS_FILE, JSON.stringify(accounts, null, 2));
+        const expires = Date.now() + 30 * 24 * 60 * 60 * 1000;
+        await pool.query(
+          'UPDATE accounts SET session_token=$1, session_expires=$2 WHERE email=$3',
+          [token, expires, email]
+        );
         const { password_hash, ...safeUser } = account;
-        res.writeHead(200, {'Content-Type':'application/json'});
-        res.end(JSON.stringify({ok: true, token, user: safeUser}));
-      } catch(err) {
-        res.writeHead(500, {'Content-Type':'application/json'});
-        res.end(JSON.stringify({error:'Server error'}));
-      }
+        json(res, 200, {ok:true, token, user: safeUser});
+      } catch(err) { console.error(err); json(res, 500, {error:'Server error'}); }
     });
     return;
   }
 
   // GET /api/account
   if (pathname === '/api/account' && req.method === 'GET') {
-    const authHeader = req.headers['authorization'] || '';
-    const token = authHeader.replace('Bearer ', '');
-    const accounts = JSON.parse(fs.readFileSync(ACCOUNTS_FILE));
-    const account = accounts.find(a => a.session_token === token && a.session_expires > Date.now());
-    if (!account) {
-      res.writeHead(401, {'Content-Type':'application/json'});
-      res.end(JSON.stringify({error:'Unauthorized'}));
-      return;
-    }
-    const certs = JSON.parse(fs.readFileSync(CERTS_FILE));
-    const userCerts = certs.filter(c => c.author && account.name &&
-      c.author.toLowerCase() === account.name.toLowerCase());
-    const { password_hash, session_token, ...safeUser } = account;
-    res.writeHead(200, {'Content-Type':'application/json'});
-    res.end(JSON.stringify({...safeUser, certificates: userCerts}));
+    const token = (req.headers['authorization'] || '').replace('Bearer ', '');
+    (async () => {
+      const result = await pool.query(
+        'SELECT * FROM accounts WHERE session_token=$1 AND session_expires>$2',
+        [token, Date.now()]
+      );
+      const account = result.rows[0];
+      if (!account) { json(res, 401, {error:'Unauthorized'}); return; }
+      const certs = await pool.query(
+        'SELECT * FROM certificates WHERE author ILIKE $1 ORDER BY created_at DESC',
+        [account.name]
+      );
+      const { password_hash, session_token, ...safeUser } = account;
+      json(res, 200, {...safeUser, certificates: certs.rows});
+    })().catch(e => { console.error(e); json(res, 500, {error:'Server error'}); });
     return;
   }
 
-  // Join / Sign-in / Account pages
+  // ── Page routes ─────────────────────────────────────────────────────────────
   if (pathname === '/join' || pathname === '/join.html') {
     serveStatic(res, path.join(__dirname, 'join.html')); return;
   }
@@ -502,85 +514,72 @@ const server = http.createServer((req, res) => {
   if (pathname === '/account' || pathname === '/account.html') {
     serveStatic(res, path.join(__dirname, 'account.html')); return;
   }
-
-  // Publisher pages
   if (pathname === '/publishers') { serveStatic(res, path.join(__dirname, 'publishers.html')); return; }
   if (pathname === '/publishers/signup') { serveStatic(res, path.join(__dirname, 'publishers-signup.html')); return; }
   if (pathname === '/publishers/dashboard') { serveStatic(res, path.join(__dirname, 'publishers-dashboard.html')); return; }
 
-  // Helper: resolve publisher from Bearer token
-  function pubFromToken(authHeader) {
-    const token = (authHeader || '').replace('Bearer ', '').trim();
-    if (!token) return null;
-    const pubs = JSON.parse(fs.readFileSync(PUBLISHERS_FILE));
-    return pubs.find(p => p.token === token) || null;
-  }
+  // ── Publisher API ────────────────────────────────────────────────────────────
 
   // POST /api/publishers/signup
   if (pathname === '/api/publishers/signup' && req.method === 'POST') {
     let body = '';
     req.on('data', c => body += c);
-    req.on('end', () => {
+    req.on('end', async () => {
       try {
         const { org, type, name, role, email, password } = JSON.parse(body);
-        if (!org || !name || !email || !password) { res.writeHead(400); res.end(JSON.stringify({error:'Missing fields'})); return; }
-        const pubs = JSON.parse(fs.readFileSync(PUBLISHERS_FILE));
-        if (pubs.find(p => p.email === email)) { res.writeHead(400); res.end(JSON.stringify({error:'Account already exists'})); return; }
+        if (!org || !name || !email || !password) { json(res, 400, {error:'Missing fields'}); return; }
+        const existing = await pool.query('SELECT id FROM publishers WHERE email=$1', [email]);
+        if (existing.rows.length > 0) { json(res, 400, {error:'Account already exists'}); return; }
+        const id = crypto.randomBytes(8).toString('hex');
+        const passwordHash = crypto.createHash('sha256').update(password).digest('hex');
         const token = crypto.randomBytes(24).toString('hex');
-        const pub = {
-          id: crypto.randomBytes(8).toString('hex'),
-          org, type: type||'other', name, role: role||'', email, token,
-          password: crypto.createHash('sha256').update(password).digest('hex'),
-          policy: { requires_trail: 'preferred', disclosure_level: 'summary', accepts_ai: 'case-by-case' },
-          contributors: [],
-          created_at: new Date().toISOString()
-        };
-        pubs.push(pub);
-        fs.writeFileSync(PUBLISHERS_FILE, JSON.stringify(pubs, null, 2));
-        const { password: _pw, token: _tk, ...safe } = pub;
-        res.writeHead(200, {'Content-Type':'application/json'});
-        res.end(JSON.stringify({ok:true, token, publisher:safe}));
-        console.log('✦ Publisher signup: ' + org + ' (' + email + ')');
-      } catch(e) { res.writeHead(500); res.end(JSON.stringify({error:'Server error'})); }
+        const expires = Date.now() + 30 * 24 * 60 * 60 * 1000;
+        const defaultPolicy = JSON.stringify({ requires_trail: 'preferred', disclosure_level: 'summary', accepts_ai: 'case-by-case' });
+        await pool.query(
+          'INSERT INTO publishers (id, org, pub_type, name, role, email, password_hash, policy, session_token, session_expires, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)',
+          [id, org, type||'other', name, role||'', email, passwordHash, defaultPolicy, token, expires, new Date().toISOString()]
+        );
+        console.log(`✦ Publisher signup: ${org} (${email})`);
+        json(res, 200, {ok:true, token, publisher:{id, org, pub_type:type, name, role, email}});
+      } catch(e) { console.error(e); json(res, 500, {error:'Server error'}); }
     });
     return;
   }
 
   // GET /api/publishers/dashboard
   if (pathname === '/api/publishers/dashboard' && req.method === 'GET') {
-    try {
-      const pub = pubFromToken(req.headers['authorization']);
-      if (!pub) { res.writeHead(401); res.end(JSON.stringify({error:'Unauthorized'})); return; }
-      const accounts = JSON.parse(fs.readFileSync(ACCOUNTS_FILE));
-      const certs = JSON.parse(fs.readFileSync(CERTS_FILE));
-      const contributors = accounts.filter(a => a.invite_code === pub.id).map(a => ({
+    (async () => {
+      const pub = await pubFromToken(req.headers['authorization']);
+      if (!pub) { json(res, 401, {error:'Unauthorized'}); return; }
+      const authors = await pool.query('SELECT * FROM accounts WHERE invite_code=$1', [pub.id]);
+      const certs = await pool.query('SELECT * FROM certificates ORDER BY created_at DESC LIMIT 50');
+      const contributors = authors.rows.map(a => ({
         name: a.name, email: a.email, joined_at: a.created_at,
-        last_certificate_date: certs.find(c => c.author_email === a.email)?.generated_at || null
+        last_certificate_date: certs.rows.find(c => c.author && a.name && c.author.toLowerCase() === a.name.toLowerCase())?.generated_at || null
       }));
-      const pubCerts = certs.filter(c => contributors.find(ct => ct.email === c.author_email));
-      res.writeHead(200, {'Content-Type':'application/json'});
-      res.end(JSON.stringify({
+      const pubCerts = certs.rows.filter(c => contributors.find(ct => ct.name && c.author && c.author.toLowerCase() === ct.name.toLowerCase()));
+      json(res, 200, {
         ok: true,
         org: pub.org,
         invite_code: pub.id,
         policy: pub.policy || {},
         contributors,
         certificates: pubCerts
-      }));
-    } catch(e) { res.writeHead(500); res.end(JSON.stringify({error:'Server error'})); }
+      });
+    })().catch(e => { console.error(e); json(res, 500, {error:'Server error'}); });
     return;
   }
 
-  // POST /api/publishers/invite  (send email invite to contributor)
+  // POST /api/publishers/invite
   if (pathname === '/api/publishers/invite' && req.method === 'POST') {
     let body = '';
     req.on('data', c => body += c);
     req.on('end', async () => {
       try {
-        const pub = pubFromToken(req.headers['authorization']);
-        if (!pub) { res.writeHead(401); res.end(JSON.stringify({error:'Unauthorized'})); return; }
+        const pub = await pubFromToken(req.headers['authorization']);
+        if (!pub) { json(res, 401, {error:'Unauthorized'}); return; }
         const { email } = JSON.parse(body);
-        if (!email) { res.writeHead(400); res.end(JSON.stringify({error:'Missing email'})); return; }
+        if (!email) { json(res, 400, {error:'Missing email'}); return; }
         const inviteLink = `https://inkstain.ai/join?publisher=${pub.id}`;
         await sendEmail(email, `${pub.org} invites you to Inkstain`, `
 <!DOCTYPE html><html><head><meta charset="UTF-8"></head>
@@ -598,9 +597,8 @@ const server = http.createServer((req, res) => {
   </div>
 </body></html>`);
         console.log(`✦ Publisher invite sent: ${pub.org} → ${email}`);
-        res.writeHead(200, {'Content-Type':'application/json'});
-        res.end(JSON.stringify({ok:true}));
-      } catch(e) { res.writeHead(500); res.end(JSON.stringify({error:'Server error'})); }
+        json(res, 200, {ok:true});
+      } catch(e) { console.error(e); json(res, 500, {error:'Server error'}); }
     });
     return;
   }
@@ -609,24 +607,22 @@ const server = http.createServer((req, res) => {
   if (pathname === '/api/publishers/policy' && req.method === 'POST') {
     let body = '';
     req.on('data', c => body += c);
-    req.on('end', () => {
+    req.on('end', async () => {
       try {
-        const pub = pubFromToken(req.headers['authorization']);
-        if (!pub) { res.writeHead(401); res.end(JSON.stringify({error:'Unauthorized'})); return; }
+        const pub = await pubFromToken(req.headers['authorization']);
+        if (!pub) { json(res, 401, {error:'Unauthorized'}); return; }
         const { requires_trail, disclosure_level, accepts_ai } = JSON.parse(body);
-        const pubs = JSON.parse(fs.readFileSync(PUBLISHERS_FILE));
-        const idx = pubs.findIndex(p => p.id === pub.id);
-        if (idx === -1) { res.writeHead(404); res.end(JSON.stringify({error:'Not found'})); return; }
-        pubs[idx].policy = { requires_trail, disclosure_level, accepts_ai };
-        fs.writeFileSync(PUBLISHERS_FILE, JSON.stringify(pubs, null, 2));
-        res.writeHead(200, {'Content-Type':'application/json'});
-        res.end(JSON.stringify({ok:true}));
-      } catch(e) { res.writeHead(500); res.end(JSON.stringify({error:'Server error'})); }
+        await pool.query(
+          'UPDATE publishers SET policy=$1 WHERE id=$2',
+          [JSON.stringify({ requires_trail, disclosure_level, accepts_ai }), pub.id]
+        );
+        json(res, 200, {ok:true});
+      } catch(e) { console.error(e); json(res, 500, {error:'Server error'}); }
     });
     return;
   }
 
-  // Static files
+  // ── Static files ─────────────────────────────────────────────────────────────
   if (pathname.startsWith('/public/')) { serveStatic(res, path.join(__dirname, pathname)); return; }
   if (pathname === '/trail' || pathname === '/trail.html') { serveStatic(res, path.join(__dirname, 'trail.html')); return; }
   if (pathname === '/verify' || pathname === '/verify.html') { serveStatic(res, path.join(__dirname, 'verify.html')); return; }
@@ -634,6 +630,4 @@ const server = http.createServer((req, res) => {
   serveStatic(res, path.join(__dirname, 'index.html'));
 });
 
-server.listen(PORT, () => {
-  console.log(`\n  ✦ Inkstain on port ${PORT}\n  ✦ /trail — certificate generator\n  ✦ /api/waitlist — waitlist\n`);
-});
+server.listen(PORT, () => console.log(`✦ Inkstain listening on port ${PORT}`));

@@ -1,0 +1,130 @@
+Yes. Here it is:
+
+Migrate all data storage from JSON files to Postgres. The database is already connected via DATABASE_URL environment variable. Make these changes and republish:
+1. Install the pg package — add "pg": "latest" to dependencies in package.json and run npm install.
+2. At the top of server.js, replace the JSON file constants with a Postgres pool and initialize the schema:
+javascriptconst { Pool } = require('pg');
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+
+async function initDB() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS accounts (
+      id TEXT PRIMARY KEY,
+      name TEXT,
+      email TEXT UNIQUE,
+      password_hash TEXT,
+      type TEXT,
+      genre TEXT,
+      school TEXT,
+      invite_code TEXT,
+      publisher_id TEXT,
+      session_token TEXT,
+      session_expires BIGINT,
+      created_at TEXT
+    );
+    CREATE TABLE IF NOT EXISTS publishers (
+      id TEXT PRIMARY KEY,
+      publication TEXT,
+      pub_type TEXT,
+      name TEXT,
+      email TEXT UNIQUE,
+      password_hash TEXT,
+      policy JSONB DEFAULT '{}',
+      invite_code TEXT,
+      session_token TEXT,
+      session_expires BIGINT,
+      created_at TEXT
+    );
+    CREATE TABLE IF NOT EXISTS certificates (
+      id SERIAL PRIMARY KEY,
+      hash TEXT UNIQUE,
+      author TEXT,
+      title TEXT,
+      disclosure TEXT,
+      generated_at TEXT,
+      trail_summary JSONB DEFAULT '{}',
+      author_note TEXT,
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS waitlist (
+      id SERIAL PRIMARY KEY,
+      email TEXT,
+      name TEXT,
+      publication TEXT,
+      message TEXT,
+      source TEXT,
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+  `);
+  console.log('✦ Database ready');
+}
+initDB().catch(console.error);
+3. Replace every JSON file operation with Postgres queries:
+POST /api/waitlist:
+javascriptawait pool.query(
+  'INSERT INTO waitlist (email, source) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+  [email, 'website']
+);
+GET /api/waitlist (admin):
+javascriptconst result = await pool.query('SELECT * FROM waitlist ORDER BY created_at DESC');
+res.end(JSON.stringify({ count: result.rows.length, emails: result.rows }));
+POST /api/accounts:
+javascriptconst existing = await pool.query('SELECT id FROM accounts WHERE email = $1', [email]);
+if (existing.rows.length > 0) { /* duplicate error */ }
+await pool.query(
+  'INSERT INTO accounts (id, name, email, password_hash, type, genre, school, invite_code, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)',
+  [id, name, email, passwordHash, type, genre, school, pubCode, new Date().toISOString()]
+);
+POST /api/signin:
+javascriptconst result = await pool.query('SELECT * FROM accounts WHERE email = $1', [email]);
+const account = result.rows[0];
+// verify hash, generate token
+await pool.query(
+  'UPDATE accounts SET session_token=$1, session_expires=$2 WHERE email=$3',
+  [token, Date.now() + 30*24*60*60*1000, email]
+);
+GET /api/account:
+javascriptconst result = await pool.query(
+  'SELECT * FROM accounts WHERE session_token=$1 AND session_expires>$2',
+  [token, Date.now()]
+);
+const account = result.rows[0];
+const certs = await pool.query('SELECT * FROM certificates WHERE author ILIKE $1 ORDER BY created_at DESC', [account.name]);
+POST /api/publishers/signup:
+javascriptawait pool.query(
+  'INSERT INTO publishers (id, publication, pub_type, name, email, password_hash, policy, invite_code, session_token, session_expires, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)',
+  [id, publication, pub_type, name, email, passwordHash, JSON.stringify(policy), inviteCode, token, Date.now()+30*24*60*60*1000, new Date().toISOString()]
+);
+POST /api/publishers/signin:
+javascriptconst result = await pool.query('SELECT * FROM publishers WHERE email=$1', [email]);
+// verify, generate token
+await pool.query('UPDATE publishers SET session_token=$1, session_expires=$2 WHERE email=$3', [token, expires, email]);
+GET /api/publishers/dashboard:
+javascriptconst pub = await pool.query('SELECT * FROM publishers WHERE session_token=$1 AND session_expires>$2', [token, Date.now()]);
+const authors = await pool.query('SELECT * FROM accounts WHERE invite_code=$1', [pub.rows[0].invite_code]);
+const certs = await pool.query('SELECT * FROM certificates ORDER BY created_at DESC LIMIT 50');
+POST /api/publishers/invite:
+javascriptconst newCode = crypto.randomBytes(8).toString('hex');
+await pool.query('UPDATE publishers SET invite_code=$1 WHERE session_token=$2', [newCode, token]);
+Certificate storage in /api/trail:
+javascriptawait pool.query(
+  'INSERT INTO certificates (hash, author, title, disclosure, generated_at, trail_summary, author_note) VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT (hash) DO NOTHING',
+  [certHash, author, title, disclosure, captureDate, JSON.stringify(trailSummary), note||'']
+);
+GET /api/verify:
+javascriptconst result = await pool.query(
+  'SELECT * FROM certificates WHERE hash LIKE $1',
+  [hash + '%']
+);
+const cert = result.rows[0];
+GET /api/stats:
+javascriptconst certs = await pool.query('SELECT COUNT(*) FROM certificates');
+const accounts = await pool.query('SELECT COUNT(*) FROM accounts');
+res.end(JSON.stringify({
+  certificates: parseInt(certs.rows[0].count),
+  waitlist: parseInt(accounts.rows[0].count),
+  hours: 12
+}));
+4. Remove all JSON file reads and writes. Keep the file constants temporarily as comments so nothing breaks during transition.
+5. Make all route handlers async — wrap each if (pathname === ...) block's inner logic in try/catch with proper error responses.
+Republish when done.
