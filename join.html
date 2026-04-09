@@ -416,7 +416,7 @@ async function handleSignup(e) {
     const res = await fetch('/api/accounts', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ name, email, password, type, genre, school: schoolValue })
+      body: JSON.stringify({ name, email, password, type, genre, school: schoolValue, invite_code: new URLSearchParams(window.location.search).get('publisher') || '' })
     });
 
     const data = await res.json();

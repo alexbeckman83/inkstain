@@ -505,7 +505,16 @@ const server = http.createServer((req, res) => {
 
   // Publisher pages
   if (pathname === '/publishers') { serveStatic(res, path.join(__dirname, 'publishers.html')); return; }
-  if (pathname === '/publishers/dashboard') { serveStatic(res, path.join(__dirname, 'dashboard.html')); return; }
+  if (pathname === '/publishers/signup') { serveStatic(res, path.join(__dirname, 'publishers-signup.html')); return; }
+  if (pathname === '/publishers/dashboard') { serveStatic(res, path.join(__dirname, 'publishers-dashboard.html')); return; }
+
+  // Helper: resolve publisher from Bearer token
+  function pubFromToken(authHeader) {
+    const token = (authHeader || '').replace('Bearer ', '').trim();
+    if (!token) return null;
+    const pubs = JSON.parse(fs.readFileSync(PUBLISHERS_FILE));
+    return pubs.find(p => p.token === token) || null;
+  }
 
   // POST /api/publishers/signup
   if (pathname === '/api/publishers/signup' && req.method === 'POST') {
@@ -513,44 +522,84 @@ const server = http.createServer((req, res) => {
     req.on('data', c => body += c);
     req.on('end', () => {
       try {
-        const { name, imprint, email, password } = JSON.parse(body);
-        if (!name || !email || !password) { res.writeHead(400); res.end(JSON.stringify({error:'Missing fields'})); return; }
+        const { org, type, name, role, email, password } = JSON.parse(body);
+        if (!org || !name || !email || !password) { res.writeHead(400); res.end(JSON.stringify({error:'Missing fields'})); return; }
         const pubs = JSON.parse(fs.readFileSync(PUBLISHERS_FILE));
         if (pubs.find(p => p.email === email)) { res.writeHead(400); res.end(JSON.stringify({error:'Account already exists'})); return; }
+        const token = crypto.randomBytes(24).toString('hex');
         const pub = {
           id: crypto.randomBytes(8).toString('hex'),
-          name, imprint: imprint||'', email,
+          org, type: type||'other', name, role: role||'', email, token,
           password: crypto.createHash('sha256').update(password).digest('hex'),
-          policy_requires_trail: false,
-          policy_disclosure_level: 'summary',
-          policy_accepts_ai: 'case_by_case',
-          authors: [],
+          policy: { requires_trail: 'preferred', disclosure_level: 'summary', accepts_ai: 'case-by-case' },
+          contributors: [],
           created_at: new Date().toISOString()
         };
         pubs.push(pub);
         fs.writeFileSync(PUBLISHERS_FILE, JSON.stringify(pubs, null, 2));
-        const { password: _pw, ...safe } = pub;
+        const { password: _pw, token: _tk, ...safe } = pub;
         res.writeHead(200, {'Content-Type':'application/json'});
-        res.end(JSON.stringify({ok:true, publisher:safe}));
-        console.log('✦ Publisher signup: ' + name);
+        res.end(JSON.stringify({ok:true, token, publisher:safe}));
+        console.log('✦ Publisher signup: ' + org + ' (' + email + ')');
       } catch(e) { res.writeHead(500); res.end(JSON.stringify({error:'Server error'})); }
     });
     return;
   }
 
-  // POST /api/publishers/login
-  if (pathname === '/api/publishers/login' && req.method === 'POST') {
+  // GET /api/publishers/dashboard
+  if (pathname === '/api/publishers/dashboard' && req.method === 'GET') {
+    try {
+      const pub = pubFromToken(req.headers['authorization']);
+      if (!pub) { res.writeHead(401); res.end(JSON.stringify({error:'Unauthorized'})); return; }
+      const accounts = JSON.parse(fs.readFileSync(ACCOUNTS_FILE));
+      const certs = JSON.parse(fs.readFileSync(CERTS_FILE));
+      const contributors = accounts.filter(a => a.invite_code === pub.id).map(a => ({
+        name: a.name, email: a.email, joined_at: a.created_at,
+        last_certificate_date: certs.find(c => c.author_email === a.email)?.generated_at || null
+      }));
+      const pubCerts = certs.filter(c => contributors.find(ct => ct.email === c.author_email));
+      res.writeHead(200, {'Content-Type':'application/json'});
+      res.end(JSON.stringify({
+        ok: true,
+        org: pub.org,
+        invite_code: pub.id,
+        policy: pub.policy || {},
+        contributors,
+        certificates: pubCerts
+      }));
+    } catch(e) { res.writeHead(500); res.end(JSON.stringify({error:'Server error'})); }
+    return;
+  }
+
+  // POST /api/publishers/invite  (send email invite to contributor)
+  if (pathname === '/api/publishers/invite' && req.method === 'POST') {
     let body = '';
     req.on('data', c => body += c);
-    req.on('end', () => {
+    req.on('end', async () => {
       try {
-        const { email, password } = JSON.parse(body);
-        const pubs = JSON.parse(fs.readFileSync(PUBLISHERS_FILE));
-        const pub = pubs.find(p => p.email === email && p.password === crypto.createHash('sha256').update(password).digest('hex'));
-        if (!pub) { res.writeHead(401); res.end(JSON.stringify({error:'Invalid email or password'})); return; }
-        const { password: _pw, ...safe } = pub;
+        const pub = pubFromToken(req.headers['authorization']);
+        if (!pub) { res.writeHead(401); res.end(JSON.stringify({error:'Unauthorized'})); return; }
+        const { email } = JSON.parse(body);
+        if (!email) { res.writeHead(400); res.end(JSON.stringify({error:'Missing email'})); return; }
+        const inviteLink = `https://inkstain.ai/join?publisher=${pub.id}`;
+        await sendEmail(email, `${pub.org} invites you to Inkstain`, `
+<!DOCTYPE html><html><head><meta charset="UTF-8"></head>
+<body style="background:#f5f2eb;margin:0;padding:40px 20px;font-family:Georgia,serif;">
+  <div style="max-width:560px;margin:0 auto;">
+    <div style="background:#1B2A3B;padding:32px;text-align:center;margin-bottom:32px;">
+      <span style="font-size:28px;font-weight:700;color:#f5f2eb;letter-spacing:-.5px;">Ink<span style="color:#c8956b;">stain</span></span>
+    </div>
+    <h1 style="font-size:24px;color:#1B2A3B;margin-bottom:8px;">${pub.org} has invited you to Inkstain.</h1>
+    <p style="font-size:17px;color:rgba(27,42,59,.6);margin-bottom:32px;">Create your free account to generate Trail certificates for your submissions.</p>
+    <a href="${inviteLink}" style="display:inline-block;background:#1B2A3B;color:#f5f2eb;padding:14px 28px;text-decoration:none;font-size:16px;margin-bottom:24px;">
+      Create your account →
+    </a>
+    <p style="font-size:13px;color:rgba(27,42,59,.3);text-align:center;margin-top:32px;font-style:italic;">The written word will prevail.</p>
+  </div>
+</body></html>`);
+        console.log(`✦ Publisher invite sent: ${pub.org} → ${email}`);
         res.writeHead(200, {'Content-Type':'application/json'});
-        res.end(JSON.stringify({ok:true, publisher:safe}));
+        res.end(JSON.stringify({ok:true}));
       } catch(e) { res.writeHead(500); res.end(JSON.stringify({error:'Server error'})); }
     });
     return;
@@ -562,30 +611,18 @@ const server = http.createServer((req, res) => {
     req.on('data', c => body += c);
     req.on('end', () => {
       try {
-        const { id, email, requires_trail, disclosure_level, accepts_ai } = JSON.parse(body);
+        const pub = pubFromToken(req.headers['authorization']);
+        if (!pub) { res.writeHead(401); res.end(JSON.stringify({error:'Unauthorized'})); return; }
+        const { requires_trail, disclosure_level, accepts_ai } = JSON.parse(body);
         const pubs = JSON.parse(fs.readFileSync(PUBLISHERS_FILE));
-        const idx = pubs.findIndex(p => p.id === id && p.email === email);
+        const idx = pubs.findIndex(p => p.id === pub.id);
         if (idx === -1) { res.writeHead(404); res.end(JSON.stringify({error:'Not found'})); return; }
-        pubs[idx].policy_requires_trail = requires_trail;
-        pubs[idx].policy_disclosure_level = disclosure_level;
-        pubs[idx].policy_accepts_ai = accepts_ai;
+        pubs[idx].policy = { requires_trail, disclosure_level, accepts_ai };
         fs.writeFileSync(PUBLISHERS_FILE, JSON.stringify(pubs, null, 2));
         res.writeHead(200, {'Content-Type':'application/json'});
         res.end(JSON.stringify({ok:true}));
       } catch(e) { res.writeHead(500); res.end(JSON.stringify({error:'Server error'})); }
     });
-    return;
-  }
-
-  // GET /api/publishers/invite
-  if (pathname === '/api/publishers/invite' && req.method === 'GET') {
-    const { id } = parsed.query;
-    const pubs = JSON.parse(fs.readFileSync(PUBLISHERS_FILE));
-    const pub = pubs.find(p => p.id === id);
-    if (!pub) { res.writeHead(404); res.end(JSON.stringify({error:'Not found'})); return; }
-    const inviteLink = 'https://inkstain.ai/download?pub=' + pub.id + '&name=' + encodeURIComponent(pub.name);
-    res.writeHead(200, {'Content-Type':'application/json'});
-    res.end(JSON.stringify({ok:true, invite_link:inviteLink, publisher:pub.name}));
     return;
   }
 

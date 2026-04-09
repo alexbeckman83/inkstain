@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Publisher Dashboard — Inkstain</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=EB+Garamond:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+  <style>
+    :root{--ink:#1B2A3B;--ink-dark:#0f1e2d;--parch:#f5f2eb;--parch-dk:#ece8dc;--amber:#c8956b;--muted:rgba(27,42,59,0.32);}
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{background:var(--parch-dk);color:var(--ink);font-family:'EB Garamond',Georgia,serif;font-size:16px;line-height:1.6;min-height:100vh;}
+    .layout{display:grid;grid-template-columns:240px 1fr;min-height:100vh;}
+    .sidebar{background:var(--ink);display:flex;flex-direction:column;}
+    .sidebar-logo{padding:1.5rem;border-bottom:.5px solid rgba(255,255,255,.08);}
+    .sidebar-logo-text{font-family:'Playfair Display',serif;font-weight:700;font-size:20px;color:var(--parch);}
+    .sidebar-logo-text span{color:var(--amber);}
+    .sidebar-org{font-size:12px;color:rgba(245,242,235,.35);margin-top:.25rem;}
+    .sidebar-nav{padding:1.5rem 0;flex:1;}
+    .sidebar-section{font-size:10px;letter-spacing:2px;text-transform:uppercase;color:rgba(245,242,235,.25);padding:.5rem 1.5rem;margin-bottom:.25rem;}
+    .nav-item{display:flex;align-items:center;gap:.75rem;padding:.75rem 1.5rem;font-size:15px;color:rgba(245,242,235,.55);cursor:pointer;transition:all .2s;border:none;background:none;width:100%;text-align:left;font-family:'EB Garamond',serif;}
+    .nav-item:hover{color:var(--parch);background:rgba(255,255,255,.05);}
+    .nav-item.active{color:var(--parch);background:rgba(255,255,255,.08);border-left:2px solid var(--amber);}
+    .sidebar-footer{padding:1.25rem 1.5rem;border-top:.5px solid rgba(255,255,255,.08);}
+    .signout-btn{font-size:13px;color:rgba(245,242,235,.35);background:none;border:none;cursor:pointer;font-family:'EB Garamond',serif;padding:0;}
+    .main{padding:2.5rem 3rem;overflow-y:auto;}
+    .page-header{margin-bottom:2rem;}
+    .page-title{font-family:'Playfair Display',serif;font-size:28px;font-weight:700;letter-spacing:-.5px;}
+    .page-sub{font-size:15px;color:var(--muted);margin-top:.25rem;}
+    .panel{background:var(--parch);border:.5px solid rgba(27,42,59,.08);padding:1.75rem;margin-bottom:1.5rem;}
+    .panel-title{font-family:'Playfair Display',serif;font-size:17px;font-weight:700;margin-bottom:1.25rem;display:flex;justify-content:space-between;align-items:center;}
+    .panel-title .action{font-family:'EB Garamond',serif;font-size:13px;font-weight:400;color:var(--amber);cursor:pointer;background:none;border:none;}
+    .stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1.5rem;}
+    .stat{background:var(--parch);border:.5px solid rgba(27,42,59,.08);padding:1.25rem;}
+    .stat-val{font-family:'Playfair Display',serif;font-size:32px;font-weight:700;line-height:1;}
+    .stat-lbl{font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-top:.35rem;}
+    .verify-box{display:flex;gap:.75rem;}
+    .verify-input{flex:1;padding:12px 16px;font-family:'EB Garamond',serif;font-size:16px;border:.5px solid rgba(27,42,59,.25);background:var(--parch-dk);color:var(--ink);outline:none;}
+    .verify-input::placeholder{color:rgba(27,42,59,.3);}
+    .btn-verify{background:var(--ink);color:var(--parch);font-family:'EB Garamond',serif;font-size:16px;padding:12px 24px;border:none;cursor:pointer;white-space:nowrap;}
+    .verify-result{margin-top:1rem;display:none;}
+    .verify-result.show{display:block;}
+    .verify-ok{background:var(--ink);color:var(--parch);padding:1.5rem;}
+    .verify-ok-badge{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--amber);margin-bottom:.75rem;}
+    .verify-ok-title{font-family:'Playfair Display',serif;font-size:20px;font-style:italic;margin-bottom:.25rem;}
+    .verify-ok-author{font-size:14px;color:rgba(245,242,235,.5);margin-bottom:1.25rem;}
+    .v-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:.75rem;margin-bottom:1.25rem;}
+    .v-stat{background:rgba(255,255,255,.06);padding:.875rem;text-align:center;}
+    .v-stat-val{font-family:'Playfair Display',serif;font-size:22px;font-weight:700;}
+    .v-stat-lbl{font-size:10px;letter-spacing:1px;text-transform:uppercase;color:rgba(245,242,235,.35);margin-top:.2rem;}
+    .v-rows{border-top:.5px solid rgba(255,255,255,.08);padding-top:.875rem;}
+    .v-row{display:flex;justify-content:space-between;padding:.35rem 0;font-size:13px;border-bottom:.5px solid rgba(255,255,255,.06);}
+    .v-row:last-child{border-bottom:none;}
+    .v-row-lbl{color:rgba(245,242,235,.4);}
+    .verify-fail{background:#fdf0ec;border:.5px solid rgba(200,80,50,.2);padding:1rem 1.25rem;font-size:15px;color:#8b3020;}
+    table{width:100%;border-collapse:collapse;}
+    th{text-align:left;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);padding:.625rem 0;border-bottom:.5px solid rgba(27,42,59,.1);}
+    td{padding:.875rem 0;border-bottom:.5px solid rgba(27,42,59,.06);font-size:15px;}
+    tr:last-child td{border-bottom:none;}
+    .badge-v{background:rgba(200,149,107,.12);color:var(--amber);font-size:11px;letter-spacing:1px;padding:.25rem .75rem;}
+    .badge-p{background:rgba(27,42,59,.06);color:var(--muted);font-size:11px;letter-spacing:1px;padding:.25rem .75rem;}
+    .invite-box{background:var(--parch-dk);padding:1.25rem;margin-bottom:1rem;}
+    .invite-url{font-family:monospace;font-size:13px;word-break:break-all;margin-bottom:.75rem;}
+    .btn-copy{background:var(--ink);color:var(--parch);font-family:'EB Garamond',serif;font-size:14px;padding:8px 20px;border:none;cursor:pointer;}
+    .policy-select{width:100%;padding:10px 12px;font-family:'EB Garamond',serif;font-size:16px;border:.5px solid rgba(27,42,59,.2);background:var(--parch-dk);color:var(--ink);outline:none;appearance:none;margin-bottom:1rem;}
+    .policy-label{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:.4rem;display:block;}
+    .btn-save{background:var(--ink);color:var(--parch);font-family:'EB Garamond',serif;font-size:15px;padding:10px 24px;border:none;cursor:pointer;}
+    .tab-nav{display:flex;margin-bottom:1.5rem;border-bottom:.5px solid rgba(27,42,59,.1);}
+    .tab{padding:.75rem 1.5rem;font-family:'EB Garamond',serif;font-size:16px;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;background:none;border-left:none;border-right:none;border-top:none;}
+    .tab.active{color:var(--ink);border-bottom-color:var(--amber);}
+    .empty{text-align:center;padding:3rem;color:var(--muted);font-style:italic;}
+    .policy-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;}
+    @media(max-width:900px){.layout{grid-template-columns:1fr;}.sidebar{display:none;}.main{padding:1.5rem;}.stats-grid,.v-stats{grid-template-columns:1fr 1fr;}.policy-grid{grid-template-columns:1fr;}}
+  </style>
+</head>
+<body>
+<div class="layout">
+  <div class="sidebar">
+    <div class="sidebar-logo">
+      <div class="sidebar-logo-text">Ink<span>stain</span></div>
+      <div class="sidebar-org" id="sidebar-org">Publisher Dashboard</div>
+    </div>
+    <div class="sidebar-nav">
+      <div class="sidebar-section">Dashboard</div>
+      <button class="nav-item active" onclick="setTab('overview',this)">✦ &nbsp;Overview</button>
+      <button class="nav-item" onclick="setTab('verify',this)">◎ &nbsp;Verify certificate</button>
+      <button class="nav-item" onclick="setTab('contributors',this)">≡ &nbsp;Contributors</button>
+      <button class="nav-item" onclick="setTab('invite',this)">↗ &nbsp;Invite contributors</button>
+      <div class="sidebar-section" style="margin-top:1rem;">Settings</div>
+      <button class="nav-item" onclick="setTab('policy',this)">⊞ &nbsp;Disclosure policy</button>
+    </div>
+    <div class="sidebar-footer">
+      <button class="signout-btn" onclick="signOut()">Sign out</button>
+    </div>
+  </div>
+  <div class="main" id="main"></div>
+</div>
+<script>
+const session = localStorage.getItem('inkstain_pub_session');
+const pubStr = localStorage.getItem('inkstain_pub');
+if (!session || !pubStr) { window.location.href = '/publishers/signup'; }
+const pub = JSON.parse(pubStr || '{}');
+let data = {};
+let tab = 'overview';
+
+function signOut() {
+  localStorage.removeItem('inkstain_pub_session');
+  localStorage.removeItem('inkstain_pub');
+  window.location.href = '/publishers';
+}
+
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function setTab(t, el) {
+  tab = t;
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  if (el) el.classList.add('active');
+  render();
+}
+
+async function load() {
+  try {
+    const r = await fetch('/api/publishers/dashboard', {headers:{'Authorization':`Bearer ${session}`}});
+    if (r.status === 401) { signOut(); return; }
+    data = await r.json();
+    document.getElementById('sidebar-org').textContent = data.org || pub.org || 'Publisher';
+    render();
+  } catch(e) {
+    document.getElementById('main').innerHTML = '<div class="empty">Could not load. <a href="/publishers/signup" style="color:var(--amber)">Sign in →</a></div>';
+  }
+}
+
+function render() {
+  const contributors = data.contributors || [];
+  const certs = data.certificates || [];
+  const policy = data.policy || {};
+  const inviteLink = `${location.origin}/join?publisher=${data.invite_code||''}`;
+  const verified = certs.length;
+  const pending = contributors.filter(c => !c.last_certificate_date).length;
+
+  let h = `
+    <div class="page-header">
+      <h1 class="page-title">${esc(data.org||pub.org||'Your Publication')}</h1>
+      <p class="page-sub">Publisher dashboard · ${esc(pub.name||'')}</p>
+    </div>
+    <div class="tab-nav">
+      <button class="tab ${tab==='overview'?'active':''}" onclick="tab='overview';render()">Overview</button>
+      <button class="tab ${tab==='verify'?'active':''}" onclick="tab='verify';render()">Verify</button>
+      <button class="tab ${tab==='contributors'?'active':''}" onclick="tab='contributors';render()">Contributors</button>
+      <button class="tab ${tab==='invite'?'active':''}" onclick="tab='invite';render()">Invite</button>
+      <button class="tab ${tab==='policy'?'active':''}" onclick="tab='policy';render()">Policy</button>
+    </div>`;
+
+  if (tab === 'overview') {
+    h += `
+      <div class="stats-grid">
+        <div class="stat"><div class="stat-val">${contributors.length}</div><div class="stat-lbl">Contributors</div></div>
+        <div class="stat"><div class="stat-val">${verified}</div><div class="stat-lbl">Certificates</div></div>
+        <div class="stat"><div class="stat-val">${pending}</div><div class="stat-lbl">Pending</div></div>
+        <div class="stat"><div class="stat-val">${verified>0?Math.round(verified/(verified+pending)*100):0}%</div><div class="stat-lbl">Verified</div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-title">Recent certificates <button class="action" onclick="tab='verify';render()">Verify one →</button></div>
+        ${certs.length===0?'<div class="empty">No certificates yet.</div>':`
+        <table><thead><tr><th>Author</th><th>Manuscript</th><th>Date</th><th>Status</th></tr></thead><tbody>
+        ${certs.slice(-5).reverse().map(c=>`<tr><td>${esc(c.author)}</td><td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(c.title)}</td><td style="white-space:nowrap;font-size:13px;color:var(--muted);">${esc(c.generated_at||'')}</td><td><span class="badge-v">✦ Verified</span></td></tr>`).join('')}
+        </tbody></table>`}
+      </div>`;
+  }
+
+  if (tab === 'verify') {
+    h += `
+      <div class="panel">
+        <div class="panel-title">Verify a certificate</div>
+        <p style="font-size:15px;color:var(--muted);margin-bottom:1.25rem;">Paste the hash from the bottom of any Inkstain certificate PDF.</p>
+        <div class="verify-box">
+          <input class="verify-input" id="v-hash" placeholder="Paste verification hash..." autocomplete="off" spellcheck="false" onkeydown="if(event.key==='Enter')doVerify()">
+          <button class="btn-verify" onclick="doVerify()">Verify</button>
+        </div>
+        <div class="verify-result" id="v-result"></div>
+      </div>`;
+  }
+
+  if (tab === 'contributors') {
+    h += `
+      <div class="panel">
+        <div class="panel-title">Contributors <button class="action" onclick="tab='invite';render()">Invite more →</button></div>
+        ${contributors.length===0?`<div class="empty">No contributors yet. <button onclick="tab='invite';render()" style="background:none;border:none;color:var(--amber);cursor:pointer;font-family:'EB Garamond',serif;font-size:15px;">Send invite link →</button></div>`:`
+        <table><thead><tr><th>Name</th><th>Email</th><th>Joined</th><th>Trail</th></tr></thead><tbody>
+        ${contributors.map(c=>`<tr><td>${esc(c.name||'—')}</td><td style="font-size:13px;color:var(--muted);">${esc(c.email)}</td><td style="font-size:13px;color:var(--muted);">${c.joined_at?new Date(c.joined_at).toLocaleDateString():'—'}</td><td>${c.last_certificate_date?'<span class="badge-v">✦ On file</span>':'<span class="badge-p">Pending</span>'}</td></tr>`).join('')}
+        </tbody></table>`}
+      </div>`;
+  }
+
+  if (tab === 'invite') {
+    h += `
+      <div class="panel">
+        <div class="panel-title">Invite contributors</div>
+        <p style="font-size:15px;color:var(--muted);margin-bottom:1.5rem;">Share this link. Contributors who sign up through it are automatically associated with <strong>${esc(data.org||pub.org||'your publication')}</strong>.</p>
+        <div class="invite-box">
+          <div class="invite-url" id="invite-url">${inviteLink}</div>
+          <button class="btn-copy" onclick="copyInvite()">Copy link</button>
+          <span id="copy-ok" style="font-size:13px;color:var(--amber);margin-left:.75rem;display:none;">✦ Copied!</span>
+        </div>
+        <div style="margin-top:2rem;padding-top:1.5rem;border-top:.5px solid rgba(27,42,59,.1);">
+          <p style="font-size:13px;color:var(--muted);margin-bottom:1rem;font-style:italic;">Or send an invitation email:</p>
+          <div style="display:flex;gap:.75rem;">
+            <input type="email" id="inv-email" placeholder="contributor@email.com" style="flex:1;padding:11px 16px;font-family:'EB Garamond',serif;font-size:16px;border:.5px solid rgba(27,42,59,.25);background:var(--parch-dk);color:var(--ink);outline:none;">
+            <button onclick="sendInvite()" style="background:var(--ink);color:var(--parch);font-family:'EB Garamond',serif;font-size:15px;padding:11px 24px;border:none;cursor:pointer;">Send invite</button>
+          </div>
+          <p id="inv-status" style="font-size:13px;color:var(--amber);margin-top:.5rem;min-height:1.2em;font-style:italic;"></p>
+        </div>
+      </div>`;
+  }
+
+  if (tab === 'policy') {
+    h += `
+      <div class="panel">
+        <div class="panel-title">Disclosure policy</div>
+        <p style="font-size:15px;color:var(--muted);margin-bottom:1.5rem;">This policy is shown to contributors when they generate a certificate.</p>
+        <div class="policy-grid">
+          <div><label class="policy-label">Require Trail certificate</label>
+          <select class="policy-select" id="pol-req">
+            <option value="required" ${policy.requires_trail==='required'?'selected':''}>Yes — required</option>
+            <option value="preferred" ${policy.requires_trail==='preferred'?'selected':''}>Preferred</option>
+            <option value="no" ${policy.requires_trail==='no'?'selected':''}>No requirement</option>
+          </select></div>
+          <div><label class="policy-label">Minimum disclosure level</label>
+          <select class="policy-select" id="pol-disc">
+            <option value="summary" ${policy.disclosure_level==='summary'?'selected':''}>Summary</option>
+            <option value="standard" ${policy.disclosure_level==='standard'?'selected':''}>Standard</option>
+            <option value="full" ${policy.disclosure_level==='full'?'selected':''}>Full</option>
+          </select></div>
+          <div><label class="policy-label">AI-assisted work</label>
+          <select class="policy-select" id="pol-ai">
+            <option value="case-by-case" ${policy.accepts_ai==='case-by-case'?'selected':''}>Case by case</option>
+            <option value="accepted" ${policy.accepts_ai==='accepted'?'selected':''}>Accepted with disclosure</option>
+            <option value="not-accepted" ${policy.accepts_ai==='not-accepted'?'selected':''}>Not accepted</option>
+          </select></div>
+        </div>
+        <button class="btn-save" onclick="savePolicy()">Save policy</button>
+        <p id="pol-status" style="font-size:13px;color:var(--amber);margin-top:.75rem;min-height:1.2em;font-style:italic;"></p>
+      </div>`;
+  }
+
+  document.getElementById('main').innerHTML = h;
+}
+
+async function doVerify() {
+  const hash = document.getElementById('v-hash')?.value.trim();
+  if (!hash) return;
+  const el = document.getElementById('v-result');
+  el.className = 'verify-result show';
+  el.innerHTML = '<div style="padding:.75rem;font-style:italic;color:var(--muted);">Verifying...</div>';
+  try {
+    const r = await fetch(`/api/verify?hash=${encodeURIComponent(hash)}`);
+    const d = await r.json();
+    if (d.verified) {
+      const t = d.trail_summary || {};
+      el.innerHTML = `<div class="verify-ok">
+        <div class="verify-ok-badge">✦ Certificate verified</div>
+        <div class="verify-ok-title">"${esc(d.title)}"</div>
+        <div class="verify-ok-author">by ${esc(d.author)}</div>
+        <div class="v-stats">
+          <div class="v-stat"><div class="v-stat-val">${t.ai_copies||0}</div><div class="v-stat-lbl">AI copies</div></div>
+          <div class="v-stat"><div class="v-stat-val">${t.ai_sessions||0}</div><div class="v-stat-lbl">AI sessions</div></div>
+          <div class="v-stat"><div class="v-stat-val">${t.interleave_count||0}</div><div class="v-stat-lbl">Write cycles</div></div>
+          <div class="v-stat"><div class="v-stat-val">${t.ai_active_minutes||0}m</div><div class="v-stat-lbl">In AI apps</div></div>
+        </div>
+        <div class="v-rows">
+          <div class="v-row"><span class="v-row-lbl">Generated</span><span>${esc(d.generated_at||'')}</span></div>
+          <div class="v-row"><span class="v-row-lbl">Disclosure</span><span>${esc(d.disclosure||'')}</span></div>
+          ${d.author_note?`<div class="v-row"><span class="v-row-lbl">Author's note</span><span style="font-style:italic;">"${esc(d.author_note)}"</span></div>`:''}
+        </div>
+      </div>`;
+    } else {
+      el.innerHTML = '<div class="verify-fail">Certificate not found. Check the hash and try again.</div>';
+    }
+  } catch(e) { el.innerHTML = '<div class="verify-fail">Could not connect.</div>'; }
+}
+
+function copyInvite() {
+  navigator.clipboard.writeText(document.getElementById('invite-url').textContent).then(() => {
+    const el = document.getElementById('copy-ok');
+    el.style.display = 'inline';
+    setTimeout(() => el.style.display = 'none', 2000);
+  });
+}
+
+async function sendInvite() {
+  const email = document.getElementById('inv-email').value.trim();
+  const st = document.getElementById('inv-status');
+  if (!email || !email.includes('@')) { st.textContent = 'Please enter a valid email.'; return; }
+  st.textContent = 'Sending...';
+  try {
+    const r = await fetch('/api/publishers/invite', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':`Bearer ${session}`},
+      body:JSON.stringify({email})
+    });
+    const d = await r.json();
+    st.textContent = d.ok ? `✦ Invitation sent to ${email}` : (d.error || 'Could not send.');
+    if (d.ok) document.getElementById('inv-email').value = '';
+  } catch(e) { st.textContent = 'Could not connect.'; }
+}
+
+async function savePolicy() {
+  const pol = {
+    requires_trail: document.getElementById('pol-req').value,
+    disclosure_level: document.getElementById('pol-disc').value,
+    accepts_ai: document.getElementById('pol-ai').value
+  };
+  const st = document.getElementById('pol-status');
+  st.textContent = 'Saving...';
+  try {
+    const r = await fetch('/api/publishers/policy', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':`Bearer ${session}`},
+      body:JSON.stringify(pol)
+    });
+    const d = await r.json();
+    if (d.ok) { st.textContent = '✦ Policy saved.'; data.policy = pol; setTimeout(()=>st.textContent='',3000); }
+    else st.textContent = 'Could not save.';
+  } catch(e) { st.textContent = 'Could not connect.'; }
+}
+
+load();
+</script>
+</body>
+</html>
