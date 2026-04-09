@@ -10,11 +10,13 @@ const PORT = process.env.PORT || 3000;
 const WAITLIST_FILE = path.join(__dirname, 'waitlist.json');
 const STATS_FILE = path.join(__dirname, 'stats.json');
 const CERTS_FILE = path.join(__dirname, 'certificates.json');
+const PUBLISHERS_FILE = path.join(__dirname, 'publishers.json');
 const UPLOAD_DIR = path.join(os.tmpdir(), 'inkstain-uploads');
 
 if (!fs.existsSync(WAITLIST_FILE)) fs.writeFileSync(WAITLIST_FILE, '[]');
 if (!fs.existsSync(STATS_FILE)) fs.writeFileSync(STATS_FILE, JSON.stringify({ certificates: 3, hours: 12 }));
 if (!fs.existsSync(CERTS_FILE)) fs.writeFileSync(CERTS_FILE, '[]');
+if (!fs.existsSync(PUBLISHERS_FILE)) fs.writeFileSync(PUBLISHERS_FILE, '[]');
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
 const MIME = {
@@ -263,6 +265,92 @@ const server = http.createServer((req, res) => {
       res.writeHead(200, {'Content-Type':'application/json'});
       res.end(JSON.stringify({ verified: false, reason: 'Certificate not found.' }));
     }
+    return;
+  }
+
+  // Publisher pages
+  if (pathname === '/publishers') { serveStatic(res, path.join(__dirname, 'publishers.html')); return; }
+  if (pathname === '/publishers/dashboard') { serveStatic(res, path.join(__dirname, 'dashboard.html')); return; }
+
+  // POST /api/publishers/signup
+  if (pathname === '/api/publishers/signup' && req.method === 'POST') {
+    let body = '';
+    req.on('data', c => body += c);
+    req.on('end', () => {
+      try {
+        const { name, imprint, email, password } = JSON.parse(body);
+        if (!name || !email || !password) { res.writeHead(400); res.end(JSON.stringify({error:'Missing fields'})); return; }
+        const pubs = JSON.parse(fs.readFileSync(PUBLISHERS_FILE));
+        if (pubs.find(p => p.email === email)) { res.writeHead(400); res.end(JSON.stringify({error:'Account already exists'})); return; }
+        const pub = {
+          id: crypto.randomBytes(8).toString('hex'),
+          name, imprint: imprint||'', email,
+          password: crypto.createHash('sha256').update(password).digest('hex'),
+          policy_requires_trail: false,
+          policy_disclosure_level: 'summary',
+          policy_accepts_ai: 'case_by_case',
+          authors: [],
+          created_at: new Date().toISOString()
+        };
+        pubs.push(pub);
+        fs.writeFileSync(PUBLISHERS_FILE, JSON.stringify(pubs, null, 2));
+        const { password: _pw, ...safe } = pub;
+        res.writeHead(200, {'Content-Type':'application/json'});
+        res.end(JSON.stringify({ok:true, publisher:safe}));
+        console.log('✦ Publisher signup: ' + name);
+      } catch(e) { res.writeHead(500); res.end(JSON.stringify({error:'Server error'})); }
+    });
+    return;
+  }
+
+  // POST /api/publishers/login
+  if (pathname === '/api/publishers/login' && req.method === 'POST') {
+    let body = '';
+    req.on('data', c => body += c);
+    req.on('end', () => {
+      try {
+        const { email, password } = JSON.parse(body);
+        const pubs = JSON.parse(fs.readFileSync(PUBLISHERS_FILE));
+        const pub = pubs.find(p => p.email === email && p.password === crypto.createHash('sha256').update(password).digest('hex'));
+        if (!pub) { res.writeHead(401); res.end(JSON.stringify({error:'Invalid email or password'})); return; }
+        const { password: _pw, ...safe } = pub;
+        res.writeHead(200, {'Content-Type':'application/json'});
+        res.end(JSON.stringify({ok:true, publisher:safe}));
+      } catch(e) { res.writeHead(500); res.end(JSON.stringify({error:'Server error'})); }
+    });
+    return;
+  }
+
+  // POST /api/publishers/policy
+  if (pathname === '/api/publishers/policy' && req.method === 'POST') {
+    let body = '';
+    req.on('data', c => body += c);
+    req.on('end', () => {
+      try {
+        const { id, email, requires_trail, disclosure_level, accepts_ai } = JSON.parse(body);
+        const pubs = JSON.parse(fs.readFileSync(PUBLISHERS_FILE));
+        const idx = pubs.findIndex(p => p.id === id && p.email === email);
+        if (idx === -1) { res.writeHead(404); res.end(JSON.stringify({error:'Not found'})); return; }
+        pubs[idx].policy_requires_trail = requires_trail;
+        pubs[idx].policy_disclosure_level = disclosure_level;
+        pubs[idx].policy_accepts_ai = accepts_ai;
+        fs.writeFileSync(PUBLISHERS_FILE, JSON.stringify(pubs, null, 2));
+        res.writeHead(200, {'Content-Type':'application/json'});
+        res.end(JSON.stringify({ok:true}));
+      } catch(e) { res.writeHead(500); res.end(JSON.stringify({error:'Server error'})); }
+    });
+    return;
+  }
+
+  // GET /api/publishers/invite
+  if (pathname === '/api/publishers/invite' && req.method === 'GET') {
+    const { id } = parsed.query;
+    const pubs = JSON.parse(fs.readFileSync(PUBLISHERS_FILE));
+    const pub = pubs.find(p => p.id === id);
+    if (!pub) { res.writeHead(404); res.end(JSON.stringify({error:'Not found'})); return; }
+    const inviteLink = 'https://inkstain.ai/download?pub=' + pub.id + '&name=' + encodeURIComponent(pub.name);
+    res.writeHead(200, {'Content-Type':'application/json'});
+    res.end(JSON.stringify({ok:true, invite_link:inviteLink, publisher:pub.name}));
     return;
   }
 

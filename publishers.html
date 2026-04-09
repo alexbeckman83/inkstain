@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Publishers — Inkstain</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=EB+Garamond:wght@400&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#1B2A3B;--parch:#f5f2eb;--parch-dk:#ece8dc;--amber:#c8956b;--muted:rgba(27,42,59,0.32);}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--parch);color:var(--ink);font-family:'EB Garamond',Georgia,serif;font-size:18px;line-height:1.7;min-height:100vh;}
+nav{display:flex;justify-content:space-between;align-items:center;padding:1.4rem 3rem;border-bottom:.5px solid rgba(27,42,59,.12);}
+.logo{font-family:'Playfair Display',serif;font-weight:700;font-size:22px;color:var(--ink);text-decoration:none;}
+.logo span{color:var(--amber);}
+.back{font-size:14px;color:var(--muted);text-decoration:none;}
+.page{max-width:1000px;margin:0 auto;padding:4rem 2rem 6rem;}
+.eyebrow{font-size:11px;letter-spacing:4px;text-transform:uppercase;color:var(--amber);margin-bottom:1rem;}
+h1{font-family:'Playfair Display',serif;font-size:clamp(32px,5vw,48px);font-weight:700;line-height:1.1;letter-spacing:-1px;margin-bottom:1rem;}
+.sub{font-size:17px;color:var(--muted);margin-bottom:3rem;max-width:520px;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:3rem;}
+.panel{background:var(--parch-dk);padding:2rem;}
+.panel h2{font-family:'Playfair Display',serif;font-size:20px;font-weight:700;margin-bottom:.4rem;}
+.panel-sub{font-size:14px;color:var(--muted);margin-bottom:1.5rem;}
+label{display:block;font-size:11px;letter-spacing:2px;text-transform:uppercase;opacity:.6;margin-bottom:.35rem;margin-top:1rem;}
+label:first-of-type{margin-top:0;}
+input{width:100%;padding:11px 14px;font-family:'EB Garamond',serif;font-size:16px;border:.5px solid rgba(27,42,59,.3);background:var(--parch);color:var(--ink);outline:none;}
+input:focus{border-color:rgba(27,42,59,.7);}
+input::placeholder{color:rgba(27,42,59,.28);}
+.btn{width:100%;background:var(--ink);color:var(--parch);font-family:'EB Garamond',serif;font-size:17px;padding:13px;border:none;cursor:pointer;margin-top:1.25rem;letter-spacing:.5px;}
+.btn:hover{opacity:.88;}
+.err{display:none;font-size:14px;color:#8b3020;margin-top:.5rem;font-style:italic;}
+.pricing{margin-top:4rem;background:var(--ink);padding:2.5rem;display:grid;grid-template-columns:repeat(3,1fr);gap:2rem;}
+.pl{font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--amber);margin-bottom:.4rem;}
+.pv{font-family:'Playfair Display',serif;font-size:26px;font-weight:700;color:var(--parch);line-height:1;}
+.pn{font-size:12px;color:rgba(245,242,235,.4);margin-top:.25rem;}
+.features{margin-top:4rem;padding-top:3rem;border-top:.5px solid rgba(27,42,59,.1);}
+.fl{font-size:11px;letter-spacing:4px;text-transform:uppercase;color:var(--amber);margin-bottom:2rem;}
+.fg{display:grid;grid-template-columns:repeat(3,1fr);gap:2rem;}
+.ft{font-family:'Playfair Display',serif;font-size:17px;font-weight:700;margin-bottom:.4rem;}
+.fb{font-size:15px;color:var(--muted);line-height:1.6;}
+.footer{margin-top:4rem;font-size:14px;color:var(--muted);font-style:italic;text-align:center;}
+@media(max-width:700px){.two-col,.fg,.pricing{grid-template-columns:1fr;}nav{padding:1.2rem 1.5rem;}.page{padding:3rem 1.5rem 4rem;}}
+</style>
+</head>
+<body>
+<nav>
+  <a href="/" class="logo">Ink<span>stain</span></a>
+  <a href="/" class="back">← back to inkstain.ai</a>
+</nav>
+<div class="page">
+  <p class="eyebrow">For publishers &amp; agents</p>
+  <h1>Protect your authors.<br>Protect your house.</h1>
+  <p class="sub">One false AI accusation costs $500k–$2M. Inkstain gives every author on your roster a tamper-evident Trail. You verify in seconds. $199 per author per year.</p>
+
+  <div class="two-col">
+    <div class="panel">
+      <h2>Create account</h2>
+      <p class="panel-sub">Start your publisher account. Free to set up — billing begins when you invite authors.</p>
+      <label>Publisher name</label>
+      <input type="text" id="s-name" placeholder="Hachette Book Group">
+      <label>Imprint (optional)</label>
+      <input type="text" id="s-imprint" placeholder="Little, Brown">
+      <label>Your email</label>
+      <input type="email" id="s-email" placeholder="you@publisher.com">
+      <label>Password</label>
+      <input type="password" id="s-pass" placeholder="Choose a password">
+      <button class="btn" onclick="signup()">Create publisher account</button>
+      <p class="err" id="s-err"></p>
+    </div>
+    <div class="panel">
+      <h2>Sign in</h2>
+      <p class="panel-sub">Already have an account? Sign in to your dashboard.</p>
+      <label>Email</label>
+      <input type="email" id="l-email" placeholder="you@publisher.com">
+      <label>Password</label>
+      <input type="password" id="l-pass" placeholder="Your password">
+      <button class="btn" onclick="login()">Sign in to dashboard</button>
+      <p class="err" id="l-err"></p>
+    </div>
+  </div>
+
+  <div class="pricing">
+    <div><p class="pl">Authors</p><p class="pv">Free</p><p class="pn">forever · no exceptions</p></div>
+    <div><p class="pl">Publishers</p><p class="pv">$199/seat/yr</p><p class="pn">per author on your roster</p></div>
+    <div><p class="pl">Verification</p><p class="pv">Included</p><p class="pn">unlimited certificate checks</p></div>
+  </div>
+
+  <div class="features">
+    <p class="fl">What you get</p>
+    <div class="fg">
+      <div><p class="ft">Author dashboard</p><p class="fb">See every author on your roster, their Trail status, and their last certificate in one place.</p></div>
+      <div><p class="ft">Policy setting</p><p class="fb">Define what you require — disclosure level, AI use policy — and authors see it when they generate their certificate.</p></div>
+      <div><p class="ft">Instant verification</p><p class="fb">Paste any certificate hash. Get the full Trail summary in under a second. No back and forth.</p></div>
+    </div>
+  </div>
+
+  <p class="footer">The written word will prevail. · <a href="mailto:publishers@inkstain.ai" style="color:var(--amber);text-decoration:none;">publishers@inkstain.ai</a></p>
+</div>
+<script>
+async function signup() {
+  const name=document.getElementById('s-name').value.trim();
+  const imprint=document.getElementById('s-imprint').value.trim();
+  const email=document.getElementById('s-email').value.trim();
+  const password=document.getElementById('s-pass').value;
+  const err=document.getElementById('s-err');
+  err.style.display='none';
+  if(!name||!email||!password){err.textContent='Please fill in all required fields.';err.style.display='block';return;}
+  const r=await fetch('/api/publishers/signup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,imprint,email,password})});
+  const d=await r.json();
+  if(d.ok){localStorage.setItem('inkstain_pub',JSON.stringify(d.publisher));window.location.href='/publishers/dashboard';}
+  else{err.textContent=d.error||'Something went wrong.';err.style.display='block';}
+}
+async function login() {
+  const email=document.getElementById('l-email').value.trim();
+  const password=document.getElementById('l-pass').value;
+  const err=document.getElementById('l-err');
+  err.style.display='none';
+  if(!email||!password){err.textContent='Please enter your email and password.';err.style.display='block';return;}
+  const r=await fetch('/api/publishers/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})});
+  const d=await r.json();
+  if(d.ok){localStorage.setItem('inkstain_pub',JSON.stringify(d.publisher));window.location.href='/publishers/dashboard';}
+  else{err.textContent=d.error||'Invalid email or password.';err.style.display='block';}
+}
+document.addEventListener('keydown',e=>{if(e.key==='Enter'){const f=document.activeElement;if(f&&f.closest('.panel')){f.id.startsWith('s-')?signup():login();}}});
+</script>
+</body>
+</html>
