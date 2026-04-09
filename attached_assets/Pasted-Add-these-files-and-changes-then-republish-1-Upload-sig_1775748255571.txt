@@ -1,0 +1,62 @@
+Add these files and changes, then republish:
+1. Upload signin.html and account.html to the project root.
+2. In server.js, add these routes and endpoints before the static files section:
+javascript// POST /api/signin
+if (pathname === '/api/signin' && req.method === 'POST') {
+  let body = '';
+  req.on('data', c => body += c);
+  req.on('end', () => {
+    try {
+      const { email, password } = JSON.parse(body);
+      const accounts = JSON.parse(fs.readFileSync(ACCOUNTS_FILE));
+      const account = accounts.find(a => a.email === email);
+      const passwordHash = crypto.createHash('sha256').update(password).digest('hex');
+      if (!account || account.password_hash !== passwordHash) {
+        res.writeHead(401, {'Content-Type':'application/json'});
+        res.end(JSON.stringify({error:'Invalid email or password'}));
+        return;
+      }
+      const token = crypto.randomBytes(32).toString('hex');
+      // Store token with account
+      account.session_token = token;
+      account.session_expires = Date.now() + (30 * 24 * 60 * 60 * 1000); // 30 days
+      fs.writeFileSync(ACCOUNTS_FILE, JSON.stringify(accounts, null, 2));
+      const { password_hash, ...safeUser } = account;
+      res.writeHead(200, {'Content-Type':'application/json'});
+      res.end(JSON.stringify({ok: true, token, user: safeUser}));
+    } catch(err) {
+      res.writeHead(500, {'Content-Type':'application/json'});
+      res.end(JSON.stringify({error:'Server error'}));
+    }
+  });
+  return;
+}
+
+// GET /api/account
+if (pathname === '/api/account' && req.method === 'GET') {
+  const authHeader = req.headers['authorization'] || '';
+  const token = authHeader.replace('Bearer ', '');
+  const accounts = JSON.parse(fs.readFileSync(ACCOUNTS_FILE));
+  const account = accounts.find(a => a.session_token === token && a.session_expires > Date.now());
+  if (!account) {
+    res.writeHead(401, {'Content-Type':'application/json'});
+    res.end(JSON.stringify({error:'Unauthorized'}));
+    return;
+  }
+  const certs = JSON.parse(fs.readFileSync(CERTS_FILE));
+  const userCerts = certs.filter(c => c.author && account.name &&
+    c.author.toLowerCase() === account.name.toLowerCase());
+  const { password_hash, session_token, ...safeUser } = account;
+  res.writeHead(200, {'Content-Type':'application/json'});
+  res.end(JSON.stringify({...safeUser, certificates: userCerts}));
+  return;
+}
+
+// Page routes
+if (pathname === '/signin' || pathname === '/signin.html') {
+  serveStatic(res, path.join(__dirname, 'signin.html')); return;
+}
+if (pathname === '/account' || pathname === '/account.html') {
+  serveStatic(res, path.join(__dirname, 'account.html')); return;
+}
+Save and republish.

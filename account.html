@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Account — Inkstain</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=EB+Garamond:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+  <style>
+    :root{--ink:#1B2A3B;--ink-dark:#0f1e2d;--parch:#f5f2eb;--parch-dk:#ece8dc;--amber:#c8956b;--muted:rgba(27,42,59,0.32);}
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+    body{background:var(--parch);color:var(--ink);font-family:'EB Garamond',Georgia,serif;font-size:18px;line-height:1.7;min-height:100vh;}
+    nav{display:flex;justify-content:space-between;align-items:center;padding:1.4rem 4rem;border-bottom:.5px solid rgba(27,42,59,.12);}
+    .nav-logo{font-family:'Playfair Display',serif;font-weight:700;font-size:24px;color:var(--ink);text-decoration:none;letter-spacing:-.5px;}
+    .nav-logo span{color:var(--amber);}
+    .nav-right{display:flex;align-items:center;gap:2rem;}
+    .nav-link{font-size:14px;color:var(--muted);text-decoration:none;}
+    .nav-link:hover{color:var(--ink);}
+    .btn-signout{font-size:14px;color:var(--muted);background:none;border:none;cursor:pointer;font-family:'EB Garamond',serif;}
+    .btn-signout:hover{color:var(--ink);}
+
+    .page{max-width:800px;margin:0 auto;padding:4rem 2rem 6rem;}
+
+    /* Header */
+    .account-header{margin-bottom:3rem;}
+    .account-greeting{font-family:'Playfair Display',serif;font-size:clamp(28px,4vw,40px);font-weight:700;letter-spacing:-.5px;margin-bottom:.25rem;}
+    .account-meta{font-size:15px;color:var(--muted);}
+    .account-meta span{color:var(--amber);}
+
+    /* Stats row */
+    .stats-row{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-bottom:3rem;}
+    .stat-card{background:var(--ink);padding:1.5rem;text-align:center;}
+    .stat-val{font-family:'Playfair Display',serif;font-size:36px;font-weight:700;color:var(--parch);line-height:1;}
+    .stat-lbl{font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(245,242,235,.45);margin-top:.4rem;}
+
+    /* Section */
+    .section{margin-bottom:3rem;}
+    .section-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:1.25rem;padding-bottom:.75rem;border-bottom:.5px solid rgba(27,42,59,.1);}
+    .section-title{font-family:'Playfair Display',serif;font-size:20px;font-weight:700;}
+    .section-action{font-size:14px;color:var(--amber);text-decoration:none;}
+    .section-action:hover{text-decoration:underline;}
+
+    /* Certificate list */
+    .cert-list{display:flex;flex-direction:column;gap:.75rem;}
+    .cert-item{display:flex;justify-content:space-between;align-items:center;padding:1.25rem 1.5rem;background:var(--parch-dk);border:.5px solid rgba(27,42,59,.08);transition:border-color .2s;}
+    .cert-item:hover{border-color:rgba(27,42,59,.2);}
+    .cert-item-left{}
+    .cert-item-title{font-family:'Playfair Display',serif;font-style:italic;font-size:17px;color:var(--ink);margin-bottom:.2rem;}
+    .cert-item-meta{font-size:13px;color:var(--muted);}
+    .cert-item-right{display:flex;gap:.75rem;align-items:center;flex-shrink:0;}
+    .cert-badge{font-size:11px;letter-spacing:1px;text-transform:uppercase;padding:.3rem .75rem;border:.5px solid rgba(27,42,59,.15);color:var(--muted);}
+    .cert-badge.full{border-color:var(--amber);color:var(--amber);}
+    .btn-verify-link{font-size:13px;color:var(--amber);text-decoration:none;}
+    .btn-verify-link:hover{text-decoration:underline;}
+
+    .empty-state{padding:3rem 2rem;text-align:center;border:.5px dashed rgba(27,42,59,.15);}
+    .empty-state-title{font-family:'Playfair Display',serif;font-size:20px;font-style:italic;color:var(--ink);margin-bottom:.5rem;}
+    .empty-state-sub{font-size:15px;color:var(--muted);margin-bottom:1.5rem;}
+    .btn-primary{display:inline-block;background:var(--ink);color:var(--parch);font-family:'EB Garamond',serif;font-size:16px;padding:12px 28px;text-decoration:none;letter-spacing:.3px;}
+
+    /* Download section */
+    .download-section{background:var(--ink);padding:2rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;}
+    .download-text{}
+    .download-title{font-family:'Playfair Display',serif;font-size:18px;color:var(--parch);margin-bottom:.25rem;}
+    .download-sub{font-size:14px;color:rgba(245,242,235,.5);}
+    .download-buttons{display:flex;gap:.75rem;}
+    .btn-download{background:var(--amber);color:var(--parch);font-family:'EB Garamond',serif;font-size:15px;padding:10px 20px;text-decoration:none;white-space:nowrap;}
+    .btn-download.secondary{background:transparent;border:.5px solid rgba(245,242,235,.25);color:var(--parch);}
+
+    .loading{text-align:center;padding:4rem;color:var(--muted);font-style:italic;}
+
+    @media(max-width:600px){
+      nav{padding:1.2rem 1.5rem;}
+      .page{padding:3rem 1.5rem 4rem;}
+      .stats-row{grid-template-columns:1fr;}
+      .cert-item{flex-direction:column;align-items:flex-start;gap:.75rem;}
+      .download-section{flex-direction:column;}
+    }
+  </style>
+</head>
+<body>
+
+<nav>
+  <a href="/" class="nav-logo">Ink<span>stain</span></a>
+  <div class="nav-right">
+    <a href="/trail" class="nav-link">New certificate</a>
+    <a href="/verify" class="nav-link">Verify</a>
+    <button class="btn-signout" onclick="signOut()">Sign out</button>
+  </div>
+</nav>
+
+<div class="page" id="page-content">
+  <div class="loading">Loading your account...</div>
+</div>
+
+<script>
+// Check session
+const session = localStorage.getItem('inkstain_session');
+const userStr = localStorage.getItem('inkstain_user');
+
+if (!session || !userStr) {
+  window.location.href = '/signin';
+}
+
+const user = JSON.parse(userStr || '{}');
+
+function signOut() {
+  localStorage.removeItem('inkstain_session');
+  localStorage.removeItem('inkstain_user');
+  window.location.href = '/';
+}
+
+function formatDate(iso) {
+  if (!iso) return '';
+  return new Date(iso).toLocaleDateString('en-US', {month:'long', day:'numeric', year:'numeric'});
+}
+
+function typeLabel(type) {
+  const map = {author:'Author', student:'Student', journalist:'Journalist', other:'Creator'};
+  return map[type] || 'Author';
+}
+
+async function loadDashboard() {
+  try {
+    const res = await fetch('/api/account', {
+      headers: {'Authorization': `Bearer ${session}`}
+    });
+
+    if (res.status === 401) {
+      signOut(); return;
+    }
+
+    const data = await res.json();
+    const certs = data.certificates || [];
+    const memberSince = formatDate(user.created_at || data.created_at);
+
+    const certCount = certs.length;
+    const totalAiCopies = certs.reduce((sum, c) => {
+      const trail = c.trail_summary || {};
+      return sum + (trail.ai_copies || trail.trail?.filter?.(e => e.type === 'ai_copy')?.length || 0);
+    }, 0);
+
+    document.getElementById('page-content').innerHTML = `
+
+      <div class="account-header">
+        <h1 class="account-greeting">Your Trail, ${user.name || 'Author'}.</h1>
+        <p class="account-meta">
+          ${typeLabel(user.type)}
+          ${user.school ? `· <span>${user.school}</span>` : ''}
+          ${user.genre ? `· ${user.genre.replace(/-/g,' ')}` : ''}
+          · Member since ${memberSince}
+        </p>
+      </div>
+
+      <div class="stats-row">
+        <div class="stat-card">
+          <div class="stat-val">${certCount}</div>
+          <div class="stat-lbl">Certificates issued</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-val">${totalAiCopies}</div>
+          <div class="stat-lbl">AI events recorded</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-val">${certCount > 0 ? '✦' : '—'}</div>
+          <div class="stat-lbl">Trail active</div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-header">
+          <h2 class="section-title">Your certificates</h2>
+          <a href="/trail" class="section-action">Generate new →</a>
+        </div>
+        ${certCount === 0 ? `
+          <div class="empty-state">
+            <p class="empty-state-title">No certificates yet.</p>
+            <p class="empty-state-sub">Generate your first Trail certificate from any manuscript.</p>
+            <a href="/trail" class="btn-primary">Generate your first certificate</a>
+          </div>
+        ` : `
+          <div class="cert-list">
+            ${certs.slice().reverse().map(c => `
+              <div class="cert-item">
+                <div class="cert-item-left">
+                  <div class="cert-item-title">"${escHtml(c.title)}"</div>
+                  <div class="cert-item-meta">${c.generated_at || ''} · hash: ${c.hash ? c.hash.slice(0,16) + '...' : '—'}</div>
+                </div>
+                <div class="cert-item-right">
+                  <span class="cert-badge ${c.disclosure === 'full' ? 'full' : ''}">${c.disclosure || 'summary'}</span>
+                  ${c.hash ? `<a href="/verify?hash=${c.hash}" class="btn-verify-link">Verify →</a>` : ''}
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        `}
+      </div>
+
+      <div class="download-section">
+        <div class="download-text">
+          <div class="download-title">Inkstain Trail app</div>
+          <div class="download-sub">Running on your machine? Your Trail is recording.</div>
+        </div>
+        <div class="download-buttons">
+          <a href="https://github.com/alexbeckman83/inkstain/releases/download/v1.1.0/Inkstain-Trail-Mac.zip" class="btn-download">↓ Mac</a>
+          <a href="https://github.com/alexbeckman83/inkstain/releases/download/v1.1.0/Inkstain-Trail-Windows.zip" class="btn-download secondary">↓ Windows</a>
+        </div>
+      </div>
+
+    `;
+  } catch(err) {
+    document.getElementById('page-content').innerHTML = `
+      <div class="loading">Could not load your account. <a href="/signin" style="color:var(--amber);">Sign in again →</a></div>
+    `;
+  }
+}
+
+function escHtml(str) {
+  return String(str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+loadDashboard();
+</script>
+</body>
+</html>

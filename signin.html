@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sign in — Inkstain</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=EB+Garamond:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+  <style>
+    :root{--ink:#1B2A3B;--ink-dark:#0f1e2d;--parch:#f5f2eb;--parch-dk:#ece8dc;--amber:#c8956b;--muted:rgba(27,42,59,0.32);}
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+    body{background:var(--parch);color:var(--ink);font-family:'EB Garamond',Georgia,serif;font-size:18px;line-height:1.7;min-height:100vh;}
+    nav{display:flex;justify-content:space-between;align-items:center;padding:1.6rem 4rem;border-bottom:.5px solid rgba(27,42,59,.12);}
+    .nav-logo{font-family:'Playfair Display',serif;font-weight:700;font-size:24px;color:var(--ink);text-decoration:none;letter-spacing:-.5px;}
+    .nav-logo span{color:var(--amber);}
+    .nav-back{font-size:14px;color:var(--muted);text-decoration:none;}
+    .nav-back:hover{color:var(--ink);}
+    .page{max-width:480px;margin:0 auto;padding:5rem 2rem 6rem;}
+    .eyebrow{font-size:11px;letter-spacing:4px;text-transform:uppercase;color:var(--amber);margin-bottom:1rem;}
+    .title{font-family:'Playfair Display',serif;font-size:clamp(30px,5vw,42px);font-weight:700;line-height:1.1;letter-spacing:-1px;margin-bottom:.75rem;}
+    .sub{font-size:17px;color:var(--muted);margin-bottom:2.5rem;}
+    .field{margin-bottom:1.5rem;}
+    .field-label{display:block;font-size:11px;letter-spacing:2.5px;text-transform:uppercase;color:var(--ink);opacity:.55;margin-bottom:.5rem;}
+    .field-input{width:100%;padding:13px 16px;font-family:'EB Garamond',serif;font-size:17px;border:.5px solid rgba(27,42,59,.28);background:var(--parch);color:var(--ink);outline:none;transition:border-color .2s;}
+    .field-input:focus{border-color:rgba(27,42,59,.65);}
+    .field-input::placeholder{color:rgba(27,42,59,.28);}
+    .btn-submit{width:100%;background:var(--ink);color:var(--parch);font-family:'EB Garamond',serif;font-size:19px;padding:16px;border:none;cursor:pointer;letter-spacing:.5px;transition:background .2s;margin-top:.5rem;}
+    .btn-submit:hover{background:var(--ink-dark);}
+    .btn-submit:disabled{opacity:.4;cursor:not-allowed;}
+    .form-error{display:none;background:#fdf0ec;border:.5px solid rgba(200,80,50,.2);padding:.875rem 1.25rem;margin-bottom:1.5rem;font-size:15px;color:#8b3020;}
+    .divider{height:.5px;background:rgba(27,42,59,.1);margin:1.5rem 0;}
+    .join-link{text-align:center;margin-top:1.5rem;font-size:15px;color:var(--muted);}
+    .join-link a{color:var(--amber);text-decoration:none;}
+  </style>
+</head>
+<body>
+<nav>
+  <a href="/" class="nav-logo">Ink<span>stain</span></a>
+  <a href="/" class="nav-back">← back to inkstain.ai</a>
+</nav>
+<div class="page">
+  <p class="eyebrow">Welcome back</p>
+  <h1 class="title">Sign in.</h1>
+  <p class="sub">Your Trail and certificates are waiting.</p>
+  <div class="form-error" id="form-error"></div>
+  <form id="signin-form" onsubmit="handleSignin(event)">
+    <div class="field">
+      <label class="field-label" for="f-email">Email</label>
+      <input type="email" id="f-email" class="field-input" placeholder="you@example.com" required autocomplete="email">
+    </div>
+    <div class="field">
+      <label class="field-label" for="f-password">Password</label>
+      <input type="password" id="f-password" class="field-input" placeholder="Your password" required autocomplete="current-password">
+    </div>
+    <button type="submit" class="btn-submit" id="submit-btn">Sign in</button>
+  </form>
+  <div class="divider"></div>
+  <p class="join-link">Don't have an account? <a href="/join">Create one — free →</a></p>
+</div>
+<script>
+async function handleSignin(e) {
+  e.preventDefault();
+  const email = document.getElementById('f-email').value.trim();
+  const password = document.getElementById('f-password').value;
+  document.getElementById('submit-btn').disabled = true;
+  document.getElementById('form-error').style.display = 'none';
+  try {
+    const res = await fetch('/api/signin', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({email, password})
+    });
+    const data = await res.json();
+    if (res.ok && data.ok) {
+      // Store session token
+      localStorage.setItem('inkstain_session', data.token);
+      localStorage.setItem('inkstain_user', JSON.stringify(data.user));
+      // Redirect to account dashboard
+      window.location.href = '/account';
+    } else {
+      showError(data.error || 'Invalid email or password.');
+      document.getElementById('submit-btn').disabled = false;
+    }
+  } catch(err) {
+    showError('Could not connect. Please try again.');
+    document.getElementById('submit-btn').disabled = false;
+  }
+}
+function showError(msg) {
+  const el = document.getElementById('form-error');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+</script>
+</body>
+</html>
