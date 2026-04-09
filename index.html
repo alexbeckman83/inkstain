@@ -82,11 +82,33 @@
 
     .nav-links a:hover { color: var(--ink); }
 
-    .nav-links .nav-cta {
+    .nav-right {
+      display: flex;
+      align-items: center;
+      gap: 2rem;
+    }
+
+    .nav-right .nav-muted {
+      font-size: 14px;
+      color: var(--muted);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .nav-right .nav-muted:hover { color: var(--ink); }
+
+    .nav-right .nav-cta {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-style: italic;
+      font-size: 16px;
+      font-weight: 700;
       color: var(--ink);
-      border-bottom: 1px solid var(--amber);
+      text-decoration: none;
+      border-bottom: 1.5px solid var(--amber);
       padding-bottom: 1px;
     }
+
+    .nav-right .nav-cta:hover { color: var(--amber); }
 
     /* ── HERO ── */
     .hero {
@@ -532,6 +554,7 @@
     @media (max-width: 768px) {
       nav { padding: 1.2rem 1.5rem; }
       .nav-links { display: none; }
+      .nav-right { display: none; }
       .hero { padding: 4rem 1.5rem 3rem; }
       .rule { margin: 0 1.5rem; }
       .manifesto { padding: 3.5rem 1.5rem; }
@@ -562,10 +585,12 @@ const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
       <li><a href="#how">How it works</a></li>
       <li><a href="#for-whom">For authors</a></li>
       <li><a href="/publishers">For publishers</a></li>
-      <li><a href="/verify" style="font-size:14px; color:var(--muted); text-decoration:none;">Verify a certificate</a></li>
-      <li><a href="https://github.com/alexbeckman83/inkstain" style="font-size:14px; color:var(--muted); text-decoration:none; transition:color .2s;" onmouseover="this.style.color='var(--ink)'" onmouseout="this.style.color='var(--muted)'">Open source ↗</a></li>
-      <li><a href="/join" style="font-size:15px; color:var(--ink); text-decoration:none; font-family:'EB Garamond',serif; border-bottom:1px solid var(--amber); padding-bottom:1px;">Create account</a></li>
     </ul>
+    <div class="nav-right">
+      <a href="/verify" class="nav-muted">Verify a certificate</a>
+      <a href="/publishers/login" class="nav-muted">Publisher login</a>
+      <a href="/join" class="nav-cta">Get started free →</a>
+    </div>
   </nav>
 
   <!-- ── HERO ── -->
@@ -776,7 +801,10 @@ const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
   <!-- ── FOOTER ── -->
   <footer>
     <span class="footer-left">The written word will prevail.</span>
-    <span class="footer-right">inkstain.ai &nbsp;·&nbsp; © 2026</span>
+    <span class="footer-right">
+      <a href="https://github.com/alexbeckman83/inkstain" style="color:rgba(27,42,59,0.45); text-decoration:none; font-size:13px; transition:color .2s;" onmouseover="this.style.color='var(--ink)'" onmouseout="this.style.color='rgba(27,42,59,0.45)'">Open source ↗</a>
+      &nbsp;·&nbsp; inkstain.ai &nbsp;·&nbsp; © 2026
+    </span>
   </footer>
 
   <script>

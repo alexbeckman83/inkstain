@@ -14,10 +14,14 @@
     nav{display:flex;justify-content:space-between;align-items:center;padding:1.6rem 4rem;border-bottom:.5px solid rgba(27,42,59,.12);}
     .nav-logo{font-family:'Playfair Display',serif;font-weight:700;font-size:24px;color:var(--ink);text-decoration:none;letter-spacing:-.5px;}
     .nav-logo span{color:var(--amber);}
+    .nav-center{display:flex;align-items:center;gap:2rem;}
     .nav-right{display:flex;align-items:center;gap:2rem;}
     .nav-link{font-size:14px;color:var(--muted);text-decoration:none;}
     .nav-link:hover{color:var(--ink);}
-    .btn-nav{font-size:14px;color:var(--ink);text-decoration:none;border-bottom:1px solid var(--amber);padding-bottom:1px;font-family:'EB Garamond',serif;}
+    .btn-nav-login{font-size:14px;color:var(--muted);text-decoration:none;transition:color .2s;}
+    .btn-nav-login:hover{color:var(--ink);}
+    .btn-nav-cta{font-family:'Playfair Display',serif;font-style:italic;font-weight:700;font-size:17px;color:var(--ink);text-decoration:none;border-bottom:1.5px solid var(--amber);padding-bottom:1px;transition:color .2s;}
+    .btn-nav-cta:hover{color:var(--amber);}
     .hero{max-width:900px;margin:0 auto;padding:6rem 4rem 5rem;}
     .eyebrow{font-size:11px;letter-spacing:4px;text-transform:uppercase;color:var(--amber);margin-bottom:1.5rem;}
     .hero-title{font-family:'Playfair Display',serif;font-size:clamp(40px,6vw,68px);font-weight:700;line-height:1.05;letter-spacing:-2px;margin-bottom:1.5rem;}
@@ -97,10 +101,13 @@
 <body>
 <nav>
   <a href="/" class="nav-logo">Ink<span>stain</span></a>
-  <div class="nav-right">
+  <div class="nav-center">
     <a href="/" class="nav-link">For authors</a>
-    <a href="/verify" class="nav-link">Verify a certificate</a>
-    <a href="/publishers/login" class="btn-nav">Publisher login →</a>
+    <a href="/#how" class="nav-link">How it works</a>
+  </div>
+  <div class="nav-right">
+    <a href="/publishers/login" class="btn-nav-login">Publisher login</a>
+    <a href="/publishers/signup" class="btn-nav-cta">Get started — free trial →</a>
   </div>
 </nav>
 
