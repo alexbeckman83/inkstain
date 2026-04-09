@@ -1,0 +1,99 @@
+In index.html, add mobile detection to the hero section. Make these changes and republish:
+1. Add this script right after the opening <body> tag:
+javascript<script>
+const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+</script>
+2. Find the hero buttons section and replace it entirely with:
+html<!-- Desktop buttons -->
+<div id="hero-desktop" style="display:flex; gap:1rem; flex-wrap:wrap; margin-top:2rem;">
+  <a href="https://github.com/alexbeckman83/inkstain/releases/download/v1.1.0/Inkstain-Trail-Mac.zip" class="btn-primary">↓ Download for Mac</a>
+  <a href="https://github.com/alexbeckman83/inkstain/releases/download/v1.1.0/Inkstain-Trail-Windows.zip" class="btn-primary">↓ Download for Windows</a>
+  <a href="#how-it-works" class="btn-secondary">See how it works</a>
+</div>
+<p id="hero-desktop-sub" style="font-size:13px; color:var(--muted); margin-top:.75rem; font-style:italic;">Free for authors. Always.</p>
+
+<!-- Mobile buttons (hidden by default, shown via JS) -->
+<div id="hero-mobile" style="display:none; margin-top:2rem;">
+  <a href="/join" style="display:block; width:100%; background:var(--ink); color:var(--parch); font-family:'EB Garamond',serif; font-size:19px; padding:16px; text-align:center; text-decoration:none; letter-spacing:.5px; margin-bottom:.75rem;">
+    Create your account — free
+  </a>
+  <div style="position:relative; display:flex; gap:.5rem; margin-bottom:.75rem;">
+    <input type="email" id="mobile-email" placeholder="your@email.com" style="flex:1; padding:13px 16px; font-family:'EB Garamond',serif; font-size:16px; border:.5px solid rgba(27,42,59,.3); background:var(--parch); color:var(--ink); outline:none;">
+    <button onclick="sendDownloadLink()" style="background:var(--amber); color:var(--parch); font-family:'EB Garamond',serif; font-size:15px; padding:13px 20px; border:none; cursor:pointer; white-space:nowrap;">
+      Send link
+    </button>
+  </div>
+  <p id="mobile-email-status" style="font-size:13px; color:var(--muted); font-style:italic; min-height:1.2em;"></p>
+  <p style="font-size:13px; color:var(--muted); margin-top:1rem; font-style:italic; text-align:center;">
+    Desktop app for Mac & Windows · <a href="#how-it-works" style="color:var(--amber); text-decoration:none;">See how it works</a>
+  </p>
+</div>
+
+<script>
+if (isMobile) {
+  document.getElementById('hero-desktop').style.display = 'none';
+  document.getElementById('hero-desktop-sub').style.display = 'none';
+  document.getElementById('hero-mobile').style.display = 'block';
+}
+
+async function sendDownloadLink() {
+  const email = document.getElementById('mobile-email').value.trim();
+  const status = document.getElementById('mobile-email-status');
+  if (!email || !email.includes('@')) {
+    status.textContent = 'Please enter a valid email address.';
+    status.style.color = '#8b3020';
+    return;
+  }
+  status.textContent = 'Sending...';
+  status.style.color = 'var(--muted)';
+  try {
+    const res = await fetch('/api/sendlink', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({email})
+    });
+    const data = await res.json();
+    if (data.ok) {
+      status.textContent = '✦ Link sent. Check your email when you\'re at your computer.';
+      status.style.color = 'var(--amber)';
+      document.getElementById('mobile-email').value = '';
+    } else {
+      status.textContent = 'Something went wrong. Try again.';
+      status.style.color = '#8b3020';
+    }
+  } catch(err) {
+    status.textContent = 'Could not connect. Try again.';
+    status.style.color = '#8b3020';
+  }
+}
+</script>
+3. In server.js, add a POST /api/sendlink endpoint after the other API routes:
+javascriptif (pathname === '/api/sendlink' && req.method === 'POST') {
+  let body = '';
+  req.on('data', c => body += c);
+  req.on('end', () => {
+    try {
+      const { email } = JSON.parse(body);
+      if (!email || !email.includes('@')) {
+        res.writeHead(400, {'Content-Type':'application/json'});
+        res.end(JSON.stringify({error:'Invalid email'}));
+        return;
+      }
+      // Store in waitlist with mobile flag
+      const list = JSON.parse(fs.readFileSync(WAITLIST_FILE));
+      if (!list.find(e => e.email === email)) {
+        list.push({email, date: new Date().toISOString(), source: 'mobile_sendlink'});
+        fs.writeFileSync(WAITLIST_FILE, JSON.stringify(list, null, 2));
+      }
+      console.log(`✦ Mobile send-link: ${email}`);
+      // TODO: send actual email when email service is connected
+      res.writeHead(200, {'Content-Type':'application/json'});
+      res.end(JSON.stringify({ok: true}));
+    } catch(err) {
+      res.writeHead(500, {'Content-Type':'application/json'});
+      res.end(JSON.stringify({error:'Server error'}));
+    }
+  });
+  return;
+}
+Save and republish.

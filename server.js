@@ -271,6 +271,34 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // POST /api/sendlink
+  if (pathname === '/api/sendlink' && req.method === 'POST') {
+    let body = '';
+    req.on('data', c => body += c);
+    req.on('end', () => {
+      try {
+        const { email } = JSON.parse(body);
+        if (!email || !email.includes('@')) {
+          res.writeHead(400, {'Content-Type':'application/json'});
+          res.end(JSON.stringify({error:'Invalid email'}));
+          return;
+        }
+        const list = JSON.parse(fs.readFileSync(WAITLIST_FILE));
+        if (!list.find(e => e.email === email)) {
+          list.push({email, date: new Date().toISOString(), source: 'mobile_sendlink'});
+          fs.writeFileSync(WAITLIST_FILE, JSON.stringify(list, null, 2));
+        }
+        console.log(`✦ Mobile send-link: ${email}`);
+        res.writeHead(200, {'Content-Type':'application/json'});
+        res.end(JSON.stringify({ok: true}));
+      } catch(err) {
+        res.writeHead(500, {'Content-Type':'application/json'});
+        res.end(JSON.stringify({error:'Server error'}));
+      }
+    });
+    return;
+  }
+
   // GET /api/schools
   if (pathname === '/api/schools' && req.method === 'GET') {
     const schools = fs.readFileSync(SCHOOLS_FILE, 'utf8');
