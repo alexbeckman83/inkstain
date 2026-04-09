@@ -114,9 +114,20 @@
   <p class="sub">Your Trail lives here. Start recording today.</p>
 
   <div class="form-error" id="form-error"></div>
-  <div class="form-success" id="form-success">
-    <p class="form-success-title">Welcome to Inkstain.</p>
-    <p class="form-success-sub">Check your email to confirm your account. Your Trail is waiting.</p>
+  <div class="form-success" id="form-success" style="display:none; background:var(--ink); padding:2.5rem; text-align:center;">
+    <p style="font-family:'Playfair Display',serif; font-size:24px; font-style:italic; color:var(--parch); margin-bottom:.5rem;">Welcome to Inkstain.</p>
+    <p style="font-size:15px; color:rgba(245,242,235,.6); margin-bottom:2rem;">Your account is created. Download the app and your Trail begins.</p>
+    <div style="display:flex; gap:1rem; justify-content:center; flex-wrap:wrap; margin-bottom:1.5rem;">
+      <a href="https://github.com/alexbeckman83/inkstain/releases/download/v1.1.0/Inkstain-Trail-Mac.zip"
+         style="background:var(--amber); color:var(--parch); font-family:'EB Garamond',serif; font-size:17px; padding:12px 28px; text-decoration:none; display:inline-block;">
+        ↓ Download for Mac
+      </a>
+      <a href="https://github.com/alexbeckman83/inkstain/releases/download/v1.1.0/Inkstain-Trail-Windows.zip"
+         style="background:transparent; border:1px solid rgba(245,242,235,.3); color:var(--parch); font-family:'EB Garamond',serif; font-size:17px; padding:12px 28px; text-decoration:none; display:inline-block;">
+        ↓ Download for Windows
+      </a>
+    </div>
+    <p style="font-size:13px; color:rgba(245,242,235,.35); font-style:italic;">Then go to inkstain.ai/trail to generate your first certificate.</p>
   </div>
 
   <form id="signup-form" onsubmit="handleSignup(event)">
