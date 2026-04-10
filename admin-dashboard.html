@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Dashboard — Inkstain</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=EB+Garamond:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+  <style>
+    :root{--ink:#1B2A3B;--ink-dk:#0f1e2d;--parch:#f5f2eb;--parch-dk:#ece8dc;--amber:#c8956b;--muted:rgba(27,42,59,0.35);}
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+    body{background:var(--parch);color:var(--ink);font-family:'EB Garamond',Georgia,serif;font-size:16px;line-height:1.5;min-height:100vh;}
+    nav{display:flex;justify-content:space-between;align-items:center;padding:1.1rem 2rem;border-bottom:.5px solid rgba(27,42,59,.12);background:var(--ink);}
+    .nav-logo{font-family:'Playfair Display',serif;font-weight:700;font-size:20px;color:var(--parch);text-decoration:none;letter-spacing:-.5px;}
+    .nav-logo span{color:var(--amber);}
+    .nav-badge{font-size:10px;letter-spacing:2px;text-transform:uppercase;color:rgba(245,242,235,.4);margin-left:1rem;}
+    .page{max-width:1200px;margin:0 auto;padding:2rem;}
+    h2{font-family:'Playfair Display',serif;font-size:22px;font-weight:700;margin-bottom:1.25rem;color:var(--ink);}
+
+    /* Stats */
+    .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:2.5rem;}
+    .stat-card{background:#fff;border:.5px solid rgba(27,42,59,.1);padding:1.25rem 1.5rem;}
+    .stat-val{font-family:'Playfair Display',serif;font-size:36px;font-weight:700;color:var(--ink);line-height:1;}
+    .stat-lbl{font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-top:.35rem;}
+
+    /* Tables */
+    .section{margin-bottom:3rem;}
+    .table-wrap{overflow-x:auto;}
+    table{width:100%;border-collapse:collapse;font-size:14px;}
+    th{text-align:left;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);padding:.6rem .75rem;border-bottom:.5px solid rgba(27,42,59,.12);white-space:nowrap;}
+    td{padding:.65rem .75rem;border-bottom:.5px solid rgba(27,42,59,.07);vertical-align:middle;}
+    tr:nth-child(even) td{background:rgba(27,42,59,.025);}
+    tr:hover td{background:rgba(200,149,107,.07);}
+
+    /* Badges */
+    .badge{display:inline-block;font-size:10px;letter-spacing:1px;text-transform:uppercase;padding:.2rem .6rem;}
+    .badge-active{background:rgba(60,160,80,.12);color:#2d7a3a;}
+    .badge-trialing{background:rgba(200,149,107,.15);color:#9a6840;}
+    .badge-canceled{background:rgba(180,60,60,.1);color:#8b2e2e;}
+    .badge-past_due{background:rgba(180,100,30,.1);color:#7a4a10;}
+    .badge-trial{background:rgba(200,149,107,.15);color:#9a6840;}
+
+    /* Plan labels */
+    .plan-campus{color:#2a5ea8;}
+    .plan-byline{color:#c8956b;}
+    .plan-imprint{color:#5a2e8a;}
+    .plan-trial{color:var(--muted);}
+
+    /* Action buttons */
+    .actions{display:flex;gap:.4rem;flex-wrap:wrap;}
+    .btn{font-family:'EB Garamond',serif;font-size:13px;padding:.3rem .7rem;border:none;cursor:pointer;text-decoration:none;display:inline-block;transition:opacity .15s;}
+    .btn:hover{opacity:.8;}
+    .btn-amber{background:var(--amber);color:var(--parch);}
+    .btn-ink{background:var(--ink);color:var(--parch);}
+    .btn-outline{background:transparent;border:.5px solid rgba(27,42,59,.25);color:var(--ink);}
+    .btn-red{background:#b94040;color:#fff;}
+
+    /* Plan select */
+    select.plan-sel{font-family:'EB Garamond',serif;font-size:13px;padding:.3rem .5rem;border:.5px solid rgba(27,42,59,.2);background:var(--parch);color:var(--ink);cursor:pointer;}
+
+    .empty{padding:2rem;text-align:center;color:var(--muted);font-style:italic;}
+    .toast{position:fixed;bottom:1.5rem;right:1.5rem;background:var(--ink);color:var(--parch);padding:.75rem 1.25rem;font-size:14px;opacity:0;transition:opacity .3s;pointer-events:none;z-index:999;}
+    .toast.show{opacity:1;}
+  </style>
+</head>
+<body>
+
+<nav>
+  <div style="display:flex;align-items:center;">
+    <a href="/admin/dashboard" class="nav-logo">Ink<span>stain</span></a>
+    <span class="nav-badge">Admin</span>
+  </div>
+  <span style="font-size:13px;color:rgba(245,242,235,.4);">Internal use only</span>
+</nav>
+
+<div class="page">
+
+  <!-- Stats bar -->
+  <div class="stats" id="stats">
+    <div class="stat-card"><div class="stat-val" id="s-pubs">—</div><div class="stat-lbl">Publishers</div></div>
+    <div class="stat-card"><div class="stat-val" id="s-authors">—</div><div class="stat-lbl">Authors</div></div>
+    <div class="stat-card"><div class="stat-val" id="s-certs">—</div><div class="stat-lbl">Certificates</div></div>
+    <div class="stat-card"><div class="stat-val" id="s-paid">—</div><div class="stat-lbl">Active paid plans</div></div>
+  </div>
+
+  <!-- Publishers table -->
+  <div class="section">
+    <h2>Publishers</h2>
+    <div class="table-wrap">
+      <table id="pub-table">
+        <thead>
+          <tr>
+            <th>Organisation</th>
+            <th>Email</th>
+            <th>Plan</th>
+            <th>Status</th>
+            <th>Contributors</th>
+            <th>Certificates</th>
+            <th>Signed up</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="pub-tbody"><tr><td colspan="8" class="empty">Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Authors table -->
+  <div class="section">
+    <h2>Authors</h2>
+    <div class="table-wrap">
+      <table id="auth-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Email</th>
+            <th>Publisher</th>
+            <th>Certificates</th>
+            <th>Joined</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="auth-tbody"><tr><td colspan="6" class="empty">Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  const PLAN_LABELS = { institution: 'Campus', newsroom: 'Byline', agency: 'Imprint', trial: 'Trial' };
+  const PLAN_CLASSES = { institution: 'plan-campus', newsroom: 'plan-byline', agency: 'plan-imprint', trial: 'plan-trial' };
+
+  function fmtDate(d) {
+    if (!d) return '—';
+    return new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+
+  function toast(msg) {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.classList.add('show');
+    setTimeout(() => el.classList.remove('show'), 2500);
+  }
+
+  async function api(method, path, body) {
+    const opts = { method, headers: {} };
+    if (body) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
+    const r = await fetch(path, opts);
+    if (r.status === 401) { window.location.href = '/admin'; return null; }
+    return r.json();
+  }
+
+  // Load stats
+  async function loadStats() {
+    const d = await api('GET', '/api/admin/stats');
+    if (!d) return;
+    document.getElementById('s-pubs').textContent = d.publishers;
+    document.getElementById('s-authors').textContent = d.authors;
+    document.getElementById('s-certs').textContent = d.certificates;
+    document.getElementById('s-paid').textContent = d.active_paid;
+  }
+
+  // Load publishers
+  async function loadPublishers() {
+    const d = await api('GET', '/api/admin/publishers');
+    if (!d) return;
+    const tbody = document.getElementById('pub-tbody');
+    if (!d.publishers.length) { tbody.innerHTML = '<tr><td colspan="8" class="empty">No publishers yet.</td></tr>'; return; }
+    tbody.innerHTML = d.publishers.map(p => {
+      const planLabel = PLAN_LABELS[p.plan] || p.plan;
+      const planClass = PLAN_CLASSES[p.plan] || '';
+      const statusClass = `badge-${(p.plan_status || 'trialing').replace(/[^a-z_]/g, '')}`;
+      return `<tr data-id="${p.id}">
+        <td><strong>${esc(p.org)}</strong></td>
+        <td>${esc(p.email)}</td>
+        <td><span class="${planClass}">${planLabel}</span></td>
+        <td><span class="badge ${statusClass}">${p.plan_status || 'trialing'}</span></td>
+        <td>${p.contributors}</td>
+        <td>${p.certificates}</td>
+        <td>${fmtDate(p.created_at)}</td>
+        <td>
+          <div class="actions">
+            <select class="plan-sel" data-id="${p.id}" title="Set plan">
+              <option value="">Set plan…</option>
+              <option value="trial">Trial</option>
+              <option value="institution">Campus</option>
+              <option value="newsroom">Byline</option>
+              <option value="agency">Imprint</option>
+            </select>
+            <button class="btn btn-amber" onclick="extendTrial('${p.id}')">Extend trial</button>
+            <button class="btn btn-outline" onclick="viewAs('${p.id}')">View as</button>
+            <button class="btn btn-red" onclick="cancelPub('${p.id}')">Cancel</button>
+          </div>
+        </td>
+      </tr>`;
+    }).join('');
+
+    // Set plan dropdown listeners
+    tbody.querySelectorAll('select.plan-sel').forEach(sel => {
+      sel.addEventListener('change', async () => {
+        const plan = sel.value;
+        if (!plan) return;
+        const id = sel.dataset.id;
+        await api('POST', `/api/admin/publishers/${id}/plan`, { plan, plan_status: plan === 'trial' ? 'trialing' : 'active' });
+        toast(`Plan updated to ${PLAN_LABELS[plan] || plan}`);
+        sel.value = '';
+        loadPublishers();
+        loadStats();
+      });
+    });
+  }
+
+  // Load authors
+  async function loadAuthors() {
+    const d = await api('GET', '/api/admin/authors');
+    if (!d) return;
+    const tbody = document.getElementById('auth-tbody');
+    if (!d.authors.length) { tbody.innerHTML = '<tr><td colspan="6" class="empty">No authors yet.</td></tr>'; return; }
+    tbody.innerHTML = d.authors.map(a => `<tr>
+      <td>${esc(a.name || '—')}</td>
+      <td>${esc(a.email)}</td>
+      <td>${esc(a.publisher)}</td>
+      <td>${a.certificates}</td>
+      <td>${fmtDate(a.joined)}</td>
+      <td><span class="badge ${a.status === 'active' ? 'badge-active' : 'badge-canceled'}">${a.status || 'active'}</span></td>
+    </tr>`).join('');
+  }
+
+  async function extendTrial(id) {
+    await api('POST', `/api/admin/publishers/${id}/extend-trial`);
+    toast('Trial extended 30 days');
+    loadPublishers();
+  }
+
+  async function cancelPub(id) {
+    if (!confirm('Cancel this publisher\'s plan?')) return;
+    await api('POST', `/api/admin/publishers/${id}/cancel`);
+    toast('Plan canceled');
+    loadPublishers();
+    loadStats();
+  }
+
+  async function viewAs(id) {
+    const d = await api('GET', `/api/admin/publishers/${id}/impersonate`);
+    if (!d || !d.token) { toast('Could not impersonate'); return; }
+    const url = `/publishers/dashboard?token=${d.token}`;
+    window.open(url, '_blank');
+  }
+
+  function esc(s) {
+    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  loadStats();
+  loadPublishers();
+  loadAuthors();
+</script>
+</body>
+</html>

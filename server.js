@@ -28,6 +28,26 @@ const PLAN_PRICE_MAP = {
 const SEAT_LIMITS = { institution: 100, newsroom: 25, agency: 100 };
 const OVERAGE_RATE = { institution: 5, newsroom: 5, agency: 'custom' };
 
+// ── Admin sessions (in-memory, 24hr) ─────────────────────────────────────────
+const adminSessions = new Map(); // token -> expiresAt
+
+function parseCookies(req) {
+  const cookies = {};
+  (req.headers['cookie'] || '').split(';').forEach(part => {
+    const [key, ...val] = part.trim().split('=');
+    if (key) cookies[key.trim()] = decodeURIComponent(val.join('=').trim());
+  });
+  return cookies;
+}
+
+function isAdminAuthenticated(req) {
+  const token = parseCookies(req)['admin_session'];
+  if (!token) return false;
+  const expiresAt = adminSessions.get(token);
+  if (!expiresAt || Date.now() > expiresAt) { adminSessions.delete(token); return false; }
+  return true;
+}
+
 async function initDB() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS accounts (
@@ -540,6 +560,159 @@ const server = http.createServer((req, res) => {
     serveStatic(res, path.join(__dirname, 'account.html')); return;
   }
   if (pathname === '/publishers') { serveStatic(res, path.join(__dirname, 'publishers.html')); return; }
+  // ── Admin pages ──────────────────────────────────────────────────────────────
+  if (pathname === '/admin' || pathname === '/admin/') {
+    if (isAdminAuthenticated(req)) { res.writeHead(302, { 'Location': '/admin/dashboard' }); res.end(); return; }
+    serveStatic(res, path.join(__dirname, 'admin.html')); return;
+  }
+  if (pathname === '/admin/dashboard') {
+    if (!isAdminAuthenticated(req)) { res.writeHead(302, { 'Location': '/admin' }); res.end(); return; }
+    serveStatic(res, path.join(__dirname, 'admin-dashboard.html')); return;
+  }
+
+  // POST /api/admin/auth
+  if (pathname === '/api/admin/auth' && req.method === 'POST') {
+    let body = '';
+    req.on('data', c => body += c);
+    req.on('end', () => {
+      try {
+        const { password } = JSON.parse(body);
+        const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
+        if (!ADMIN_PASSWORD || password !== ADMIN_PASSWORD) { json(res, 401, { error: 'Incorrect password' }); return; }
+        const token = crypto.randomBytes(32).toString('hex');
+        adminSessions.set(token, Date.now() + 24 * 60 * 60 * 1000);
+        res.writeHead(200, { 'Content-Type': 'application/json', 'Set-Cookie': `admin_session=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=86400` });
+        res.end(JSON.stringify({ ok: true }));
+      } catch (e) { json(res, 500, { error: 'Server error' }); }
+    });
+    return;
+  }
+
+  // GET /api/admin/stats
+  if (pathname === '/api/admin/stats' && req.method === 'GET') {
+    if (!isAdminAuthenticated(req)) { json(res, 401, { error: 'Unauthorized' }); return; }
+    (async () => {
+      const [p, a, c, paid] = await Promise.all([
+        pool.query('SELECT COUNT(*) FROM publishers'),
+        pool.query('SELECT COUNT(*) FROM accounts'),
+        pool.query('SELECT COUNT(*) FROM certificates'),
+        pool.query("SELECT COUNT(*) FROM publishers WHERE plan != 'trial' AND plan_status = 'active'"),
+      ]);
+      json(res, 200, {
+        publishers: parseInt(p.rows[0].count),
+        authors: parseInt(a.rows[0].count),
+        certificates: parseInt(c.rows[0].count),
+        active_paid: parseInt(paid.rows[0].count),
+      });
+    })().catch(e => { console.error(e); json(res, 500, { error: 'Server error' }); });
+    return;
+  }
+
+  // GET /api/admin/publishers
+  if (pathname === '/api/admin/publishers' && req.method === 'GET') {
+    if (!isAdminAuthenticated(req)) { json(res, 401, { error: 'Unauthorized' }); return; }
+    (async () => {
+      const pubs = await pool.query('SELECT * FROM publishers ORDER BY created_at DESC');
+      const result = await Promise.all(pubs.rows.map(async pub => {
+        const contribs = await pool.query('SELECT COUNT(*) FROM accounts WHERE publisher_id=$1', [pub.id]);
+        const certs = await pool.query(
+          'SELECT COUNT(*) FROM certificates c WHERE EXISTS (SELECT 1 FROM accounts a WHERE a.publisher_id=$1 AND LOWER(a.name)=LOWER(c.author))',
+          [pub.id]
+        );
+        return {
+          id: pub.id, org: pub.org, email: pub.email,
+          plan: pub.plan || 'trial', plan_status: pub.plan_status || 'trialing',
+          trial_ends_at: pub.trial_ends_at, created_at: pub.created_at,
+          contributors: parseInt(contribs.rows[0].count),
+          certificates: parseInt(certs.rows[0].count),
+        };
+      }));
+      json(res, 200, { publishers: result });
+    })().catch(e => { console.error(e); json(res, 500, { error: 'Server error' }); });
+    return;
+  }
+
+  // GET /api/admin/authors
+  if (pathname === '/api/admin/authors' && req.method === 'GET') {
+    if (!isAdminAuthenticated(req)) { json(res, 401, { error: 'Unauthorized' }); return; }
+    (async () => {
+      const authors = await pool.query(`
+        SELECT a.id, a.name, a.email, a.created_at, a.status, p.org as publisher_org
+        FROM accounts a LEFT JOIN publishers p ON a.publisher_id = p.id
+        ORDER BY a.created_at DESC
+      `);
+      const certCounts = await Promise.all(authors.rows.map(async a => {
+        const r = await pool.query("SELECT COUNT(*) FROM certificates WHERE LOWER(author)=LOWER($1)", [a.name || '']);
+        return { email: a.email, count: parseInt(r.rows[0].count) };
+      }));
+      const certMap = {};
+      certCounts.forEach(c => { certMap[c.email] = c.count; });
+      json(res, 200, {
+        authors: authors.rows.map(a => ({
+          id: a.id, name: a.name, email: a.email,
+          publisher: a.publisher_org || '—',
+          certificates: certMap[a.email] || 0,
+          joined: a.created_at, status: a.status || 'active',
+        }))
+      });
+    })().catch(e => { console.error(e); json(res, 500, { error: 'Server error' }); });
+    return;
+  }
+
+  // POST /api/admin/publishers/:id/plan
+  const adminPlanMatch = pathname.match(/^\/api\/admin\/publishers\/([^/]+)\/plan$/);
+  if (adminPlanMatch && req.method === 'POST') {
+    if (!isAdminAuthenticated(req)) { json(res, 401, { error: 'Unauthorized' }); return; }
+    const pubId = adminPlanMatch[1];
+    let body = '';
+    req.on('data', c => body += c);
+    req.on('end', async () => {
+      try {
+        const { plan, plan_status } = JSON.parse(body);
+        await pool.query('UPDATE publishers SET plan=$1, plan_status=$2, trial_ends_at=NULL WHERE id=$3', [plan, plan_status || 'active', pubId]);
+        json(res, 200, { ok: true });
+      } catch (e) { console.error(e); json(res, 500, { error: 'Server error' }); }
+    });
+    return;
+  }
+
+  // POST /api/admin/publishers/:id/extend-trial
+  const adminExtendMatch = pathname.match(/^\/api\/admin\/publishers\/([^/]+)\/extend-trial$/);
+  if (adminExtendMatch && req.method === 'POST') {
+    if (!isAdminAuthenticated(req)) { json(res, 401, { error: 'Unauthorized' }); return; }
+    const pubId = adminExtendMatch[1];
+    (async () => {
+      await pool.query("UPDATE publishers SET trial_ends_at = COALESCE(trial_ends_at, NOW()) + INTERVAL '30 days', plan='trial', plan_status='trialing' WHERE id=$1", [pubId]);
+      json(res, 200, { ok: true });
+    })().catch(e => { console.error(e); json(res, 500, { error: 'Server error' }); });
+    return;
+  }
+
+  // POST /api/admin/publishers/:id/cancel
+  const adminCancelMatch = pathname.match(/^\/api\/admin\/publishers\/([^/]+)\/cancel$/);
+  if (adminCancelMatch && req.method === 'POST') {
+    if (!isAdminAuthenticated(req)) { json(res, 401, { error: 'Unauthorized' }); return; }
+    const pubId = adminCancelMatch[1];
+    (async () => {
+      await pool.query("UPDATE publishers SET plan_status='canceled' WHERE id=$1", [pubId]);
+      json(res, 200, { ok: true });
+    })().catch(e => { console.error(e); json(res, 500, { error: 'Server error' }); });
+    return;
+  }
+
+  // GET /api/admin/publishers/:id/impersonate — generates a temp publisher session token
+  const adminImpersonateMatch = pathname.match(/^\/api\/admin\/publishers\/([^/]+)\/impersonate$/);
+  if (adminImpersonateMatch && req.method === 'GET') {
+    if (!isAdminAuthenticated(req)) { json(res, 401, { error: 'Unauthorized' }); return; }
+    const pubId = adminImpersonateMatch[1];
+    (async () => {
+      const tempToken = crypto.randomBytes(24).toString('hex');
+      await pool.query('UPDATE publishers SET session_token=$1, session_expires=$2 WHERE id=$3', [tempToken, Date.now() + 2 * 60 * 60 * 1000, pubId]);
+      json(res, 200, { token: tempToken });
+    })().catch(e => { console.error(e); json(res, 500, { error: 'Server error' }); });
+    return;
+  }
+
   if (pathname === '/publishers/signup') { serveStatic(res, path.join(__dirname, 'publishers-signup.html')); return; }
   if (pathname === '/publishers/login') { serveStatic(res, path.join(__dirname, 'publishers-login.html')); return; }
   if (pathname === '/publishers/forgot-password') { serveStatic(res, path.join(__dirname, 'publishers-forgot-password.html')); return; }

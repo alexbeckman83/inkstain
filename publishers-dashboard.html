@@ -125,9 +125,13 @@
   <div class="main" id="main"></div>
 </div>
 <script>
+// Support admin impersonation via ?token= URL param
+const _urlToken = new URLSearchParams(location.search).get('token');
+if (_urlToken) { localStorage.setItem('inkstain_pub_session', _urlToken); localStorage.removeItem('inkstain_pub'); }
+
 const session = localStorage.getItem('inkstain_pub_session');
 const pubStr = localStorage.getItem('inkstain_pub');
-if (!session || !pubStr) { window.location.href = '/publishers/signup'; }
+if (!session) { window.location.href = '/publishers/signup'; }
 const pub = JSON.parse(pubStr || '{}');
 let data = {};
 let billing = {};

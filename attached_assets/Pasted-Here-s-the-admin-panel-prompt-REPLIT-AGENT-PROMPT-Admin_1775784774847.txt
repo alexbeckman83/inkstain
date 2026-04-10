@@ -1,0 +1,63 @@
+Here's the admin panel prompt:
+
+REPLIT AGENT PROMPT — Admin Panel at /admin
+Build a password-protected admin panel at inkstain.ai/admin. This is an internal tool — functional over fancy, but should use the Inkstain design system.
+
+Authentication
+Simple password gate. Add a new Replit Secret: ADMIN_PASSWORD
+
+/admin shows a centered password input + "Enter" button if not authenticated
+On submit: POST /api/admin/auth with { password } — compare to ADMIN_PASSWORD env var
+On success: set a signed session cookie admin_session (24hr expiry) and redirect to /admin/dashboard
+On failure: show "Incorrect password" inline, no redirect
+All /admin/* routes check for valid admin_session cookie — redirect to /admin if missing or expired
+
+
+/admin/dashboard — Publishers table
+Full-width table of all publisher accounts. Columns:
+ColumnSourceOrganisationpublishers.nameEmailpublishers.emailPlanpublishers.plan (show as Byline / Campus / Imprint / Trial)Statuspublishers.plan_statusContributorsCOUNT from authors table where publisher_id matchesCertificatesCOUNT from certificates table where publisher matchesSigned uppublishers.created_atActionsbuttons — see below
+Row actions:
+
+Activate — sets plan='newsroom', plan_status='active', trial_ends_at=NULL — label changes to plan name once active
+Set plan — dropdown: Trial / Byline / Campus / Imprint — updates plan and plan_status='active'
+Extend trial — adds 30 days to trial_ends_at
+Cancel — sets plan_status='canceled'
+View as — opens /publishers/dashboard with a special admin token that lets you see that publisher's dashboard (read-only impersonation — just pass ?admin_view=PUBLISHER_ID and handle it server-side)
+
+
+/admin/dashboard — Authors table (below publishers)
+Simpler table of all author accounts:
+ColumnSourceNameaccounts.nameEmailaccounts.emailPublisherpublisher name from joinCertificatesCOUNTJoinedaccounts.created_atStatusaccounts.status
+No row actions needed for now — read only.
+
+/admin/dashboard — Stats bar at top
+Four metric cards across the top:
+
+Total publishers
+Total authors
+Total certificates
+Active paid plans (where plan != 'trial')
+
+
+API routes needed:
+
+POST /api/admin/auth — password check, sets cookie
+GET /api/admin/publishers — returns all publishers with counts
+GET /api/admin/authors — returns all authors with publisher name
+POST /api/admin/publishers/:id/plan — body: { plan, plan_status } — updates plan
+POST /api/admin/publishers/:id/extend-trial — adds 30 days
+GET /api/admin/stats — returns the four metric counts
+
+All /api/admin/* routes must verify admin_session cookie — return 401 if missing.
+
+Style
+Match Inkstain design system — parchment #f5f2eb background, ink #1B2A3B, amber #c8956b, Playfair Display + EB Garamond. Tables should be clean and readable — alternating row tints, amber action buttons, status badges (green for active, amber for trial, red for canceled).
+Do not link to /admin from anywhere on the public site. It is only accessible by direct URL.
+
+After complete:
+
+Confirm /admin password gate renders
+Confirm /admin/dashboard shows publishers and authors tables
+Confirm plan update actions work
+Confirm stats bar shows correct counts
+Add ADMIN_PASSWORD to the list of required Replit Secrets (we will set it manually)

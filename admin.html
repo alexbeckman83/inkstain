@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Inkstain Admin</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=EB+Garamond:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+  <style>
+    :root{--ink:#1B2A3B;--parch:#f5f2eb;--amber:#c8956b;--muted:rgba(27,42,59,0.35);}
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+    body{background:var(--parch);color:var(--ink);font-family:'EB Garamond',Georgia,serif;min-height:100vh;display:flex;align-items:center;justify-content:center;}
+    .gate{max-width:360px;width:100%;padding:2rem;}
+    .logo{font-family:'Playfair Display',serif;font-weight:700;font-size:22px;color:var(--ink);margin-bottom:2.5rem;text-align:center;}
+    .logo span{color:var(--amber);}
+    .eyebrow{font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--amber);text-align:center;margin-bottom:1.5rem;}
+    label{display:block;font-size:13px;color:var(--muted);letter-spacing:.5px;margin-bottom:.4rem;}
+    input{width:100%;border:none;border-bottom:1px solid rgba(27,42,59,.2);background:transparent;font-family:'EB Garamond',serif;font-size:17px;padding:.5rem 0;color:var(--ink);outline:none;margin-bottom:1.5rem;}
+    input:focus{border-bottom-color:var(--amber);}
+    button{width:100%;background:var(--ink);color:var(--parch);border:none;font-family:'EB Garamond',serif;font-size:17px;padding:13px;cursor:pointer;transition:background .2s;}
+    button:hover{background:#0f1e2d;}
+    .error{color:#b94040;font-size:14px;margin-top:1rem;text-align:center;min-height:1.4em;}
+  </style>
+</head>
+<body>
+<div class="gate">
+  <div class="logo">Ink<span>stain</span></div>
+  <p class="eyebrow">Admin access</p>
+  <form id="form">
+    <label for="pw">Password</label>
+    <input type="password" id="pw" autocomplete="current-password" autofocus>
+    <button type="submit">Enter</button>
+    <p class="error" id="err"></p>
+  </form>
+</div>
+<script>
+  document.getElementById('form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const pw = document.getElementById('pw').value;
+    const err = document.getElementById('err');
+    err.textContent = '';
+    try {
+      const r = await fetch('/api/admin/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: pw })
+      });
+      if (r.ok) {
+        window.location.href = '/admin/dashboard';
+      } else {
+        const d = await r.json();
+        err.textContent = d.error || 'Incorrect password';
+      }
+    } catch {
+      err.textContent = 'Connection error';
+    }
+  });
+</script>
+</body>
+</html>
