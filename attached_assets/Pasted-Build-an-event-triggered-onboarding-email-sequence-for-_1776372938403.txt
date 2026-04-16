@@ -1,0 +1,143 @@
+Build an event-triggered onboarding email sequence for both publishers and authors using Resend. All emails must match the Inkstain brand — parchment #f5f2eb background, ink #1B2A3B, amber #c8956b, Playfair Display headings, EB Garamond body, clean and minimal.
+
+Infrastructure first
+Add a scheduled_emails table to track what has and hasn't been sent:
+sqlCREATE TABLE IF NOT EXISTS scheduled_emails (
+  id SERIAL PRIMARY KEY,
+  recipient_email TEXT NOT NULL,
+  recipient_type TEXT NOT NULL, -- 'publisher' or 'author'
+  recipient_id TEXT NOT NULL,
+  email_key TEXT NOT NULL, -- unique identifier for each email in sequence
+  triggered_by TEXT NOT NULL, -- 'account_created', 'first_contributor', 'first_certificate'
+  sent_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_scheduled_emails_dedup 
+  ON scheduled_emails (recipient_id, email_key);
+The unique index prevents any email from being sent twice to the same recipient.
+
+PUBLISHER SEQUENCE — 3 emails
+Email 1: Account created
+
+Trigger: immediately on publisher signup
+Key: publisher_welcome
+Subject: Your Inkstain publisher account is ready
+Content:
+
+Heading: "You're in."
+Body: Welcome to Inkstain. Your publisher dashboard is live. The next step is inviting your first contributor — send them your invite link and they'll be automatically associated with your publication.
+CTA button (ink): "Go to your dashboard →" → https://inkstain.ai/publishers/dashboard
+Secondary link: "View your invite link →" → https://inkstain.ai/publishers/dashboard (Invite tab)
+Footer: "The written word will prevail. · inkstain.ai"
+
+
+
+Email 2: First contributor joins
+
+Trigger: when first author signs up via this publisher's invite link (count goes from 0 to 1 in authors table)
+Key: publisher_first_contributor
+Subject: [CONTRIBUTOR NAME] just joined your Inkstain dashboard
+Content:
+
+Heading: "Your first contributor is in."
+Body: [CONTRIBUTOR NAME] has joined [PUBLISHER NAME] on Inkstain. Their Trail is now active. When they submit a piece, ask them to include their Inkstain certificate. You can verify it in seconds from your dashboard.
+CTA button: "View contributors →" → https://inkstain.ai/publishers/dashboard (Contributors tab)
+Secondary: "Learn how verification works →" → https://inkstain.ai/publishers/dashboard (Verify tab)
+
+
+
+Email 3: First certificate verified
+
+Trigger: when publisher verifies their first certificate (first successful verify action in dashboard)
+Key: publisher_first_verify
+Subject: You just verified your first Inkstain certificate
+Content:
+
+Heading: "That's what it feels like."
+Body: You've verified your first Trail certificate. That's the standard — one click, full provenance, no ambiguity. Invite more contributors and make it your policy for every submission.
+CTA button: "Invite more contributors →" → https://inkstain.ai/publishers/dashboard (Invite tab)
+Soft pitch: "Ready to make it official? Upgrade to a paid plan and unlock the full policy engine." → links to Billing tab
+
+
+
+
+AUTHOR SEQUENCE — 3 emails
+Email 1: Account created
+
+Trigger: immediately on author signup (both direct and invite-link)
+Key: author_welcome
+Subject: You're in. Start your Trail.
+Content:
+
+Heading: "Your Trail starts now."
+Body: Inkstain is running. Every word you write from here is witnessed. When you're ready to submit a piece, generate your Trail certificate from the desktop agent — it takes one click.
+If signed up via invite link, add: "You've been added to [PUBLISHER NAME]'s contributor list. They'll be able to verify your certificates directly from their dashboard."
+CTA button: "Download the desktop agent →" → https://inkstain.ai (download section)
+Secondary: "Generate your first certificate →" → https://inkstain.ai/trail
+
+
+
+Email 2: First certificate generated
+
+Trigger: when author generates their first certificate at /trail
+Key: author_first_certificate
+Subject: Your first Trail certificate is ready
+Content:
+
+Heading: "Your first certificate."
+Body: You've generated your first Inkstain Trail certificate. This is your proof of authorship — a signed, timestamped record of how this piece was made. Share the verification hash with your editor or attach the PDF to your submission.
+CTA button: "View your certificates →" → https://inkstain.ai/account
+Secondary: "How to share your certificate →" → https://inkstain.ai (how it works section)
+
+
+
+Email 3: First certificate verified by publisher
+
+Trigger: when a publisher verifies one of this author's certificates
+Key: author_certificate_verified
+Subject: [PUBLISHER NAME] verified your Trail certificate
+Content:
+
+Heading: "Verified."
+Body: [PUBLISHER NAME] just verified your Trail certificate for "[ARTICLE TITLE if available, otherwise 'your recent submission']". Your provenance is on record. This is what protection looks like.
+CTA button: "View your account →" → https://inkstain.ai/account
+No pitch — this is a pure positive moment, don't sell into it.
+
+
+
+
+Sending logic
+Create a helper function sendOnboardingEmail(recipientId, recipientType, emailKey, triggeredBy, templateData) that:
+
+Checks scheduled_emails for existing record with same recipient_id + email_key
+If already sent — skip silently
+If not sent — render the email template, send via Resend, insert record into scheduled_emails with sent_at = NOW()
+
+Call this function from the appropriate places:
+
+Publisher signup handler → publisher_welcome
+Author signup handler → author_welcome
+Author association with publisher (invite link signup) → check contributor count, fire publisher_first_contributor to the publisher if this is their first
+Certificate generation handler → author_first_certificate
+Certificate verify handler → publisher_first_verify to publisher + author_certificate_verified to author (if publisher_id known)
+
+All email sending is fire-and-forget — wrap in try/catch, never block the main request.
+
+Email template structure (all emails)
+html<!-- Outer wrapper: parchment background -->
+<!-- Centered container: max-width 560px, white background, subtle border -->
+<!-- Header: Inkstain wordmark, Playfair Display -->
+<!-- Divider: amber line -->
+<!-- Heading: Playfair Display, ink color -->
+<!-- Body: EB Garamond, 16px, ink color -->
+<!-- CTA button: ink background, parchment text, Playfair Display -->
+<!-- Footer: muted, EB Garamond italic, "The written word will prevail." -->
+Use inline styles throughout — email clients strip <style> blocks.
+
+After complete:
+
+Confirm scheduled_emails table created
+Confirm publisher welcome email fires on signup
+Confirm author welcome email fires on signup
+Confirm dedup index prevents double-sends
+Confirm all 6 email templates render correctly in Resend preview
