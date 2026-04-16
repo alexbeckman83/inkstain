@@ -8,6 +8,7 @@ const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const { Pool } = require('pg');
 const Stripe = require('stripe');
+const { sendOnboardingEmail: _sendOnboardingEmail } = require('./emails');
 
 const PORT = process.env.PORT || 3000;
 const SCHOOLS_FILE = path.join(__dirname, 'schools.json');
@@ -204,12 +205,31 @@ async function initDB() {
     ALTER TABLE publishers ADD COLUMN IF NOT EXISTS admin_view_token TEXT;
     ALTER TABLE publishers ADD COLUMN IF NOT EXISTS admin_view_expires BIGINT;
   `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS scheduled_emails (
+      id SERIAL PRIMARY KEY,
+      recipient_email TEXT NOT NULL,
+      recipient_type TEXT NOT NULL,
+      recipient_id TEXT NOT NULL,
+      email_key TEXT NOT NULL,
+      triggered_by TEXT NOT NULL,
+      sent_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_scheduled_emails_dedup
+      ON scheduled_emails (recipient_id, email_key);
+  `);
   console.log('✦ Database ready');
 }
 initDB().catch(console.error);
 
 // ── Email ─────────────────────────────────────────────────────────────────────
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
+
+// Thin wrapper: pools + sendEmail are local to this file
+function sendOnboardingEmail(args) {
+  return _sendOnboardingEmail(pool, sendEmail, args);
+}
 
 async function sendEmail(to, subject, html) {
   if (!RESEND_API_KEY) {
@@ -470,6 +490,29 @@ const server = http.createServer((req, res) => {
             ).catch(e => console.error('Cert storage error:', e));
           }
           console.log(`✦ Certificate: "${title}" by ${author} [${disclosure}]${trailJson ? ' +Trail' : ''}${note ? ' +Note' : ''}`);
+
+          // Fire-and-forget onboarding email: author_first_certificate.
+          // /api/trail is anonymous and attacker-influenceable, so only target
+          // an account when the submitted author name matches EXACTLY one row.
+          // Name collisions → skip (avoid misdirected notifications).
+          (async () => {
+            try {
+              const match = await pool.query(
+                'SELECT id, email FROM accounts WHERE LOWER(name)=LOWER($1)',
+                [author]
+              );
+              if (match.rows.length === 1 && match.rows[0].email) {
+                await sendOnboardingEmail({
+                  recipientEmail: match.rows[0].email,
+                  recipientType: 'author',
+                  recipientId: match.rows[0].id,
+                  emailKey: 'author_first_certificate',
+                  triggeredBy: 'first_certificate',
+                  templateData: { articleTitle: title },
+                });
+              }
+            } catch (e) { console.error('[onboarding trigger] first_certificate:', e); }
+          })();
         });
 
         proc.on('error', err => {
@@ -501,6 +544,49 @@ const server = http.createServer((req, res) => {
       const cert = result.rows[0];
       if (cert) {
         json(res, 200, { verified: true, ...cert });
+
+        // Fire onboarding triggers if a publisher token is attached.
+        (async () => {
+          try {
+            const verifier = await pubFromToken(req.headers['authorization']);
+            if (!verifier) return;
+
+            // Publisher: first-verify email (dedup handles "first" semantics)
+            if (verifier.email) {
+              sendOnboardingEmail({
+                recipientEmail: verifier.email,
+                recipientType: 'publisher',
+                recipientId: verifier.id,
+                emailKey: 'publisher_first_verify',
+                triggeredBy: 'certificate_verified',
+                templateData: { publisherName: verifier.org },
+              }).catch(e => console.error('[onboarding trigger] publisher_first_verify:', e));
+            }
+
+            // Author: certificate-verified email, sent ONLY when the matched
+            // account is explicitly linked to this verifying publisher. This
+            // prevents name-collision misdirection of submission metadata.
+            const matchAuthor = await pool.query(
+              `SELECT id, email FROM accounts
+               WHERE LOWER(name)=LOWER($1) AND publisher_id=$2 LIMIT 1`,
+              [cert.author, verifier.id]
+            );
+            if (matchAuthor.rows[0] && matchAuthor.rows[0].email) {
+              // Compound dedup key so each (publisher, certificate) pair is a
+              // separate dedup slot — an author may legitimately receive this
+              // email once per certificate they submit.
+              sendOnboardingEmail({
+                recipientEmail: matchAuthor.rows[0].email,
+                recipientType: 'author',
+                recipientId: matchAuthor.rows[0].id,
+                emailKey: 'author_certificate_verified',
+                dedupKey: `author_certificate_verified:${verifier.id}:${cert.hash}`,
+                triggeredBy: 'certificate_verified',
+                templateData: { publisherName: verifier.org, articleTitle: cert.title },
+              }).catch(e => console.error('[onboarding trigger] author_certificate_verified:', e));
+            }
+          } catch (e) { console.error('[onboarding trigger] verify block:', e); }
+        })();
       } else {
         json(res, 200, { verified: false, reason: 'Certificate not found.' });
       }
@@ -588,46 +674,51 @@ const server = http.createServer((req, res) => {
         }
         const id = crypto.randomBytes(8).toString('hex');
         const passwordHash = await hashPassword(password);
+
+        // If invite_code matches a real publisher (the invite_code == pub.id),
+        // link this account and detect whether they're the first contributor.
+        let linkedPublisher = null;
+        let isFirstContributor = false;
+        if (invite_code) {
+          try {
+            const pubRow = await pool.query('SELECT id, org, email FROM publishers WHERE id=$1', [invite_code]);
+            if (pubRow.rows[0]) {
+              linkedPublisher = pubRow.rows[0];
+              const countRow = await pool.query(
+                'SELECT COUNT(*)::int AS n FROM accounts WHERE publisher_id=$1 OR invite_code=$1',
+                [linkedPublisher.id]
+              );
+              isFirstContributor = countRow.rows[0].n === 0;
+            }
+          } catch (e) { console.error('[onboarding] invite lookup failed:', e); }
+        }
+
         await pool.query(
-          'INSERT INTO accounts (id, name, email, password_hash, type, genre, school, invite_code, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)',
-          [id, name, email, passwordHash, type||'author', genre||'', school||'', invite_code||'', new Date().toISOString()]
+          'INSERT INTO accounts (id, name, email, password_hash, type, genre, school, invite_code, publisher_id, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',
+          [id, name, email, passwordHash, type||'author', genre||'', school||'', invite_code||'', linkedPublisher ? linkedPublisher.id : null, new Date().toISOString()]
         );
         console.log(`✦ New account: ${maskEmail(email)} [${type}]${school ? ' @ ' + school : ''}`);
-        sendEmail(email, 'Welcome to Inkstain — your Trail starts now', `
-<!DOCTYPE html>
-<html>
-<head><meta charset="UTF-8"></head>
-<body style="background:#f5f2eb;margin:0;padding:40px 20px;font-family:Georgia,serif;">
-  <div style="max-width:560px;margin:0 auto;">
-    <div style="background:#1B2A3B;padding:32px;text-align:center;margin-bottom:32px;">
-      <span style="font-size:28px;font-weight:700;color:#f5f2eb;letter-spacing:-.5px;">Ink<span style="color:#c8956b;">stain</span></span>
-    </div>
-    <h1 style="font-size:28px;color:#1B2A3B;margin-bottom:8px;">Welcome, ${name}.</h1>
-    <p style="font-size:17px;color:rgba(27,42,59,.6);margin-bottom:32px;">Your account is created. Your Trail starts the moment you open the app.</p>
-    <div style="margin-bottom:24px;">
-      <a href="https://github.com/alexbeckman83/inkstain/releases/download/v1.1.0/Inkstain-Trail-Mac.zip"
-         style="display:inline-block;background:#1B2A3B;color:#f5f2eb;padding:14px 28px;text-decoration:none;font-size:16px;margin-right:12px;margin-bottom:12px;">
-        ↓ Download for Mac
-      </a>
-      <a href="https://github.com/alexbeckman83/inkstain/releases/download/v1.1.0/Inkstain-Trail-Windows.zip"
-         style="display:inline-block;background:transparent;border:1px solid #1B2A3B;color:#1B2A3B;padding:14px 28px;text-decoration:none;font-size:16px;margin-bottom:12px;">
-        ↓ Download for Windows
-      </a>
-    </div>
-    <div style="background:#ece8dc;padding:24px;margin-bottom:32px;">
-      <p style="font-size:15px;color:#1B2A3B;margin:0 0 8px;font-weight:bold;">What to do next:</p>
-      <p style="font-size:15px;color:rgba(27,42,59,.7);margin:0 0 6px;">1. Download and open the app — it lives in your menubar</p>
-      <p style="font-size:15px;color:rgba(27,42,59,.7);margin:0 0 6px;">2. Set your manuscript title in the app</p>
-      <p style="font-size:15px;color:rgba(27,42,59,.7);margin:0;">3. Write. Your Trail records automatically.</p>
-    </div>
-    <p style="font-size:14px;color:rgba(27,42,59,.4);text-align:center;font-style:italic;">
-      When you're ready — <a href="https://inkstain.ai/trail" style="color:#c8956b;text-decoration:none;">generate your certificate at inkstain.ai/trail</a>
-    </p>
-    <p style="font-size:13px;color:rgba(27,42,59,.3);text-align:center;margin-top:32px;font-style:italic;">The written word will prevail.</p>
-  </div>
-</body>
-</html>
-`);
+
+        // Fire-and-forget onboarding emails
+        sendOnboardingEmail({
+          recipientEmail: email,
+          recipientType: 'author',
+          recipientId: id,
+          emailKey: 'author_welcome',
+          triggeredBy: 'account_created',
+          templateData: { publisherName: linkedPublisher ? linkedPublisher.org : null },
+        }).catch(e => console.error('[onboarding trigger] author_welcome:', e));
+
+        if (linkedPublisher && isFirstContributor && linkedPublisher.email) {
+          sendOnboardingEmail({
+            recipientEmail: linkedPublisher.email,
+            recipientType: 'publisher',
+            recipientId: linkedPublisher.id,
+            emailKey: 'publisher_first_contributor',
+            triggeredBy: 'first_contributor',
+            templateData: { contributorName: name, publisherName: linkedPublisher.org },
+          }).catch(e => console.error('[onboarding trigger] publisher_first_contributor:', e));
+        }
         json(res, 200, {ok:true});
       } catch(err) { console.error(err); json(res, 500, {error:'Server error'}); }
     });
@@ -892,6 +983,15 @@ const server = http.createServer((req, res) => {
           [id, org, type||'other', name, role||'', email, passwordHash, defaultPolicy, token, expires, new Date().toISOString(), 'trial', 'trialing', trialEndsAt]
         );
         console.log(`✦ Publisher signup: ${org} (${maskEmail(email)})`);
+        // Fire-and-forget onboarding email
+        sendOnboardingEmail({
+          recipientEmail: email,
+          recipientType: 'publisher',
+          recipientId: id,
+          emailKey: 'publisher_welcome',
+          triggeredBy: 'account_created',
+          templateData: { orgName: org },
+        }).catch(e => console.error('[onboarding trigger] publisher_welcome:', e));
         json(res, 200, {ok:true, token, publisher:{id, org, pub_type:type, name, role, email}});
       } catch(e) { console.error(e); json(res, 500, {error:'Server error'}); }
     });

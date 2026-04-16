@@ -129,7 +129,10 @@ async function sendOnboardingEmail(pool, sendEmail, {
   recipientEmail,
   recipientType,   // 'publisher' | 'author'
   recipientId,
-  emailKey,        // template key
+  emailKey,        // template key (also the default dedup slot)
+  dedupKey,        // optional — override the (recipient_id, slot) dedup key when
+                   // the same template may legitimately fire multiple times for
+                   // different contexts (e.g. per-certificate verification)
   triggeredBy,     // 'account_created' | 'first_contributor' | 'first_certificate' | 'certificate_verified'
   templateData = {},
 }) {
@@ -137,6 +140,7 @@ async function sendOnboardingEmail(pool, sendEmail, {
     if (!recipientEmail || !recipientId || !emailKey) return { sent: false, reason: 'missing args' };
     const tmpl = templates[emailKey];
     if (!tmpl) return { sent: false, reason: 'unknown template: ' + emailKey };
+    const slotKey = dedupKey || emailKey;
 
     // Atomic reservation; if row exists we lose the race and skip.
     const reserve = await pool.query(
@@ -144,14 +148,24 @@ async function sendOnboardingEmail(pool, sendEmail, {
        VALUES ($1,$2,$3,$4,$5)
        ON CONFLICT (recipient_id, email_key) DO NOTHING
        RETURNING id`,
-      [recipientEmail, recipientType, recipientId, emailKey, triggeredBy]
+      [recipientEmail, recipientType, recipientId, slotKey, triggeredBy]
     );
     if (reserve.rows.length === 0) return { sent: false, reason: 'already sent' };
 
+    const reservationId = reserve.rows[0].id;
     const { subject, html } = tmpl(templateData);
-    const result = await sendEmail(recipientEmail, subject, html);
-    await pool.query('UPDATE scheduled_emails SET sent_at=NOW() WHERE id=$1', [reserve.rows[0].id]);
-    return { sent: true, result };
+    try {
+      const result = await sendEmail(recipientEmail, subject, html);
+      await pool.query('UPDATE scheduled_emails SET sent_at=NOW() WHERE id=$1', [reservationId]);
+      return { sent: true, result };
+    } catch (sendErr) {
+      // Release the dedup slot so a future trigger can retry; otherwise a
+      // transient provider outage permanently suppresses this onboarding email.
+      await pool.query('DELETE FROM scheduled_emails WHERE id=$1', [reservationId])
+        .catch(e => console.error('[onboarding] release reservation failed:', e));
+      console.error('[onboarding] delivery failed, slot released:', emailKey, sendErr);
+      return { sent: false, reason: 'delivery error' };
+    }
   } catch (err) {
     console.error('[onboarding] send failed:', emailKey, err);
     return { sent: false, reason: 'error' };
