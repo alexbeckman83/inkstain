@@ -48,6 +48,66 @@ function isAdminAuthenticated(req) {
   return true;
 }
 
+// Constant-time string comparison (prevents timing attacks)
+function safeEqual(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string') return false;
+  const ab = Buffer.from(a), bb = Buffer.from(b);
+  if (ab.length !== bb.length) return false;
+  return crypto.timingSafeEqual(ab, bb);
+}
+
+// ── Rate limiting (per IP, in-memory sliding window) ─────────────────────────
+const rateBuckets = new Map(); // key -> [timestamps]
+function getClientIp(req) {
+  // Take the LAST entry in x-forwarded-for (the IP observed by the trusted
+  // proxy in front of us), not the first (which is client-supplied and
+  // trivially spoofable). Fall back to the socket IP.
+  const xff = req.headers['x-forwarded-for'];
+  if (typeof xff === 'string' && xff.length > 0) {
+    const parts = xff.split(',').map(s => s.trim()).filter(Boolean);
+    if (parts.length > 0) return parts[parts.length - 1];
+  }
+  return req.socket.remoteAddress || 'unknown';
+}
+function rateLimit(req, bucketName, max, windowMs) {
+  const key = `${bucketName}:${getClientIp(req)}`;
+  const now = Date.now();
+  const arr = (rateBuckets.get(key) || []).filter(t => now - t < windowMs);
+  if (arr.length >= max) { rateBuckets.set(key, arr); return false; }
+  arr.push(now);
+  rateBuckets.set(key, arr);
+  return true;
+}
+// Periodic cleanup of stale buckets
+setInterval(() => {
+  const cutoff = Date.now() - 60 * 60 * 1000;
+  for (const [k, arr] of rateBuckets.entries()) {
+    const fresh = arr.filter(t => t > cutoff);
+    if (fresh.length === 0) rateBuckets.delete(k);
+    else rateBuckets.set(k, fresh);
+  }
+}, 10 * 60 * 1000).unref();
+
+// CORS origin policy — strict allowlist. Extra dev/preview origins can be
+// whitelisted via the CORS_EXTRA_ORIGINS env var (comma-separated exact matches).
+const CORS_ALLOWLIST = new Set([
+  'https://inkstain.ai',
+  'https://www.inkstain.ai',
+  'http://localhost:5000',
+  'http://localhost:3000',
+  ...(process.env.REPLIT_DEV_DOMAIN ? [`https://${process.env.REPLIT_DEV_DOMAIN}`] : []),
+  ...(process.env.REPLIT_DOMAINS ? process.env.REPLIT_DOMAINS.split(',').map(d => `https://${d.trim()}`).filter(Boolean) : []),
+  ...(process.env.CORS_EXTRA_ORIGINS ? process.env.CORS_EXTRA_ORIGINS.split(',').map(s => s.trim()).filter(Boolean) : []),
+]);
+function resolveCorsOrigin(req) {
+  const origin = req.headers['origin'];
+  if (!origin) return null;
+  return CORS_ALLOWLIST.has(origin) ? origin : null;
+}
+
+// Max upload size for /api/trail: 25 MB
+const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
+
 async function initDB() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS accounts (
@@ -201,13 +261,20 @@ const server = http.createServer((req, res) => {
   const parsed = url.parse(req.url, true);
   const pathname = parsed.pathname;
 
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  // CORS — allowlist-based (same-origin requests without Origin header are always allowed)
+  const corsOrigin = resolveCorsOrigin(req);
+  if (corsOrigin) {
+    res.setHeader('Access-Control-Allow-Origin', corsOrigin);
+    res.setHeader('Vary', 'Origin');
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+  }
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
 
   // POST /api/waitlist
   if (pathname === '/api/waitlist' && req.method === 'POST') {
+    if (!rateLimit(req, 'waitlist', 20, 60 * 60 * 1000)) { json(res, 429, { error: 'Too many requests' }); return; }
     let body = '';
     req.on('data', c => body += c);
     req.on('end', async () => {
@@ -252,9 +319,22 @@ const server = http.createServer((req, res) => {
 
   // POST /api/trail — certificate generator
   if (pathname === '/api/trail' && req.method === 'POST') {
+    if (!rateLimit(req, 'trail', 30, 60 * 60 * 1000)) { json(res, 429, { error: 'Too many requests. Try again later.' }); return; }
     const chunks = [];
-    req.on('data', c => chunks.push(c));
+    let totalSize = 0;
+    let aborted = false;
+    req.on('data', c => {
+      totalSize += c.length;
+      if (totalSize > MAX_UPLOAD_BYTES && !aborted) {
+        aborted = true;
+        json(res, 413, { error: 'Upload too large. Maximum 25 MB.' });
+        req.destroy();
+        return;
+      }
+      chunks.push(c);
+    });
     req.on('end', () => {
+      if (aborted) return;
       try {
         const body = Buffer.concat(chunks);
         const ct = req.headers['content-type'] || '';
@@ -366,7 +446,12 @@ const server = http.createServer((req, res) => {
 
   // GET /api/verify
   if (pathname === '/api/verify' && req.method === 'GET') {
-    const hash = parsed.query.hash || '';
+    if (!rateLimit(req, 'verify', 100, 60 * 60 * 1000)) { json(res, 429, { verified: false, error: 'Rate limit' }); return; }
+    const hash = String(parsed.query.hash || '').trim();
+    if (hash.length < 8 || hash.length > 128 || !/^[a-f0-9]+$/i.test(hash)) {
+      json(res, 400, { verified: false, reason: 'Invalid certificate hash.' });
+      return;
+    }
     (async () => {
       const result = await pool.query(
         'SELECT * FROM certificates WHERE hash LIKE $1',
@@ -383,6 +468,9 @@ const server = http.createServer((req, res) => {
   }
 
   // POST /api/sendlink
+  if (pathname === '/api/sendlink' && req.method === 'POST' && !rateLimit(req, 'sendlink', 10, 60 * 60 * 1000)) {
+    json(res, 429, { error: 'Too many requests' }); return;
+  }
   if (pathname === '/api/sendlink' && req.method === 'POST') {
     let body = '';
     req.on('data', c => body += c);
@@ -439,6 +527,9 @@ const server = http.createServer((req, res) => {
   }
 
   // POST /api/accounts
+  if (pathname === '/api/accounts' && req.method === 'POST' && !rateLimit(req, 'signup-acc', 10, 60 * 60 * 1000)) {
+    json(res, 429, { error: 'Too many signups. Try again later.' }); return;
+  }
   if (pathname === '/api/accounts' && req.method === 'POST') {
     let body = '';
     req.on('data', c => body += c);
@@ -503,6 +594,9 @@ const server = http.createServer((req, res) => {
   }
 
   // POST /api/signin
+  if (pathname === '/api/signin' && req.method === 'POST' && !rateLimit(req, 'signin', 10, 60 * 60 * 1000)) {
+    json(res, 429, { error: 'Too many attempts. Try again later.' }); return;
+  }
   if (pathname === '/api/signin' && req.method === 'POST') {
     let body = '';
     req.on('data', c => body += c);
@@ -576,9 +670,10 @@ const server = http.createServer((req, res) => {
     req.on('data', c => body += c);
     req.on('end', () => {
       try {
+        if (!rateLimit(req, 'admin-auth', 10, 60 * 60 * 1000)) { json(res, 429, { error: 'Too many attempts. Try again later.' }); return; }
         const { password } = JSON.parse(body);
         const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
-        if (!ADMIN_PASSWORD || password !== ADMIN_PASSWORD) { json(res, 401, { error: 'Incorrect password' }); return; }
+        if (!ADMIN_PASSWORD || !safeEqual(String(password || ''), ADMIN_PASSWORD)) { json(res, 401, { error: 'Incorrect password' }); return; }
         const token = crypto.randomBytes(32).toString('hex');
         adminSessions.set(token, Date.now() + 24 * 60 * 60 * 1000);
         res.writeHead(200, { 'Content-Type': 'application/json', 'Set-Cookie': `admin_session=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=86400` });
@@ -722,6 +817,9 @@ const server = http.createServer((req, res) => {
   // ── Publisher API ────────────────────────────────────────────────────────────
 
   // POST /api/publishers/signup
+  if (pathname === '/api/publishers/signup' && req.method === 'POST' && !rateLimit(req, 'pub-signup', 10, 60 * 60 * 1000)) {
+    json(res, 429, { error: 'Too many signups. Try again later.' }); return;
+  }
   if (pathname === '/api/publishers/signup' && req.method === 'POST') {
     let body = '';
     req.on('data', c => body += c);
@@ -750,6 +848,7 @@ const server = http.createServer((req, res) => {
 
   // POST /api/publishers/login
   if (pathname === '/api/publishers/login' && req.method === 'POST') {
+    if (!rateLimit(req, 'pub-login', 10, 60 * 60 * 1000)) { json(res, 429, { error: 'Too many attempts. Try again later.' }); return; }
     let body = '';
     req.on('data', c => body += c);
     req.on('end', async () => {
@@ -777,6 +876,7 @@ const server = http.createServer((req, res) => {
 
   // POST /api/publishers/forgot-password
   if (pathname === '/api/publishers/forgot-password' && req.method === 'POST') {
+    if (!rateLimit(req, 'pub-forgot', 5, 60 * 60 * 1000)) { json(res, 429, { error: 'Too many attempts. Try again later.' }); return; }
     let body = '';
     req.on('data', c => body += c);
     req.on('end', async () => {
@@ -817,6 +917,9 @@ const server = http.createServer((req, res) => {
   }
 
   // POST /api/publishers/reset-password
+  if (pathname === '/api/publishers/reset-password' && req.method === 'POST' && !rateLimit(req, 'pub-reset', 10, 60 * 60 * 1000)) {
+    json(res, 429, { error: 'Too many requests' }); return;
+  }
   if (pathname === '/api/publishers/reset-password' && req.method === 'POST') {
     let body = '';
     req.on('data', c => body += c);

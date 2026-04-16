@@ -1,0 +1,58 @@
+Please run a full security audit and fix all issues found. Here's what to check:
+
+1. EXPOSED ROUTES IN JS BUNDLE:
+- Audit all frontend route definitions in App.tsx/router
+- Remove any admin, internal, or sensitive routes from the client-side bundle
+- Admin routes should only be accessible server-side with middleware checks
+- Any route with /admin, /debug, /internal, /test should require server-side auth verification, not just frontend redirect
+
+2. API ENDPOINT SECURITY:
+- Audit every backend endpoint — confirm each has proper auth middleware
+- Endpoints that should NEVER be public (no auth): anything that reads/writes user data, admin endpoints, internal tooling
+- Endpoints that CAN be public: /auth callbacks, /share/:token, /board/:token, /proof/:userId, /az public page
+- Add rate limiting to all public endpoints: 100 requests/hour per IP
+- Add rate limiting to auth endpoints: 10 attempts/hour per IP
+
+3. ENVIRONMENT VARIABLE EXPOSURE:
+- Confirm no API keys, tokens, or secrets are in the frontend bundle
+- Check for any process.env.VARIABLE references in frontend code — these get baked into the bundle
+- All secrets should only be in backend code
+- Run: grep -r "process.env" frontend/src — flag anything that isn't VITE_PUBLIC_*
+
+4. SUPABASE ROW LEVEL SECURITY:
+- Confirm RLS is enabled on all tables
+- Users should only be able to read/write their own rows
+- Public tables (proof, shared boards, shared plans) should have read-only policies for anon users
+- Check: inspiration_boards, launch_plans, work_items, az_wins, twitter_accounts, social_accounts
+
+5. CORS CONFIGURATION:
+- Confirm CORS only allows requests from heyaz.ai and localhost in dev
+- No wildcard (*) CORS in production
+- Check all API routes have proper CORS headers
+
+6. AUTH HARDENING:
+- Confirm all authenticated endpoints verify the JWT token server-side
+- Token should be verified against Supabase, not just trusted from client
+- Check for any endpoints that accept userId as a body parameter without verifying it matches the authenticated user
+
+7. SENSITIVE DATA IN LOGS:
+- Audit all console.log statements
+- Remove any logs that contain: tokens, passwords, full base64 images, API keys
+- Keep logs for debugging but sanitize sensitive fields
+
+8. SQL INJECTION:
+- Confirm all DB queries use parameterized queries ($1, $2) not string interpolation
+- Search for any template literal SQL: `SELECT * FROM ${table}` — flag these
+
+9. FILE UPLOAD SECURITY:
+- Confirm file uploads validate type server-side (not just client-side)
+- Max file size enforced server-side
+- Uploaded files stored in Supabase storage, not on server filesystem
+- No executable file types accepted
+
+10. DEPENDENCIES:
+- Run: npm audit
+- Fix any high or critical vulnerabilities
+- Update packages with known CVEs
+
+Report everything found, fix what you can automatically, and flag anything that needs manual review.
