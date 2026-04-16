@@ -5,6 +5,7 @@ const url = require('url');
 const { spawn } = require('child_process');
 const os = require('os');
 const crypto = require('crypto');
+const bcrypt = require('bcryptjs');
 const { Pool } = require('pg');
 const Stripe = require('stripe');
 
@@ -54,6 +55,39 @@ function safeEqual(a, b) {
   const ab = Buffer.from(a), bb = Buffer.from(b);
   if (ab.length !== bb.length) return false;
   return crypto.timingSafeEqual(ab, bb);
+}
+
+// ── Password hashing (bcrypt + legacy SHA-256 compat) ────────────────────────
+const BCRYPT_ROUNDS = 12;
+async function hashPassword(pw) {
+  return await bcrypt.hash(String(pw), BCRYPT_ROUNDS);
+}
+// verifyPassword: returns { ok: bool, needsRehash: bool }.
+// - Handles modern bcrypt hashes ($2a/$2b/$2y$...)
+// - Handles legacy 64-char hex SHA-256 hashes and signals caller to rehash.
+async function verifyPassword(pw, stored) {
+  if (!stored || typeof stored !== 'string') return { ok: false, needsRehash: false };
+  if (stored.startsWith('$2a$') || stored.startsWith('$2b$') || stored.startsWith('$2y$')) {
+    try { return { ok: await bcrypt.compare(String(pw), stored), needsRehash: false }; }
+    catch { return { ok: false, needsRehash: false }; }
+  }
+  // Legacy SHA-256 hex (64 chars, lowercase). Constant-time compare, then flag for rehash.
+  if (/^[a-f0-9]{64}$/.test(stored)) {
+    const candidate = crypto.createHash('sha256').update(String(pw)).digest('hex');
+    const ok = safeEqual(candidate, stored);
+    return { ok, needsRehash: ok };
+  }
+  return { ok: false, needsRehash: false };
+}
+
+// Mask email addresses for logs: "alex@example.com" → "a***@example.com"
+function maskEmail(email) {
+  if (!email || typeof email !== 'string') return '';
+  const at = email.indexOf('@');
+  if (at < 1) return '***';
+  const local = email.slice(0, at);
+  const domain = email.slice(at);
+  return `${local[0]}***${domain}`;
 }
 
 // ── Rate limiting (per IP, in-memory sliding window) ─────────────────────────
@@ -167,6 +201,8 @@ async function initDB() {
     ALTER TABLE publishers ADD COLUMN IF NOT EXISTS reset_token_expires_at TIMESTAMPTZ;
     ALTER TABLE publishers ADD COLUMN IF NOT EXISTS logo_url TEXT;
     ALTER TABLE publishers ADD COLUMN IF NOT EXISTS website_url TEXT;
+    ALTER TABLE publishers ADD COLUMN IF NOT EXISTS admin_view_token TEXT;
+    ALTER TABLE publishers ADD COLUMN IF NOT EXISTS admin_view_expires BIGINT;
   `);
   console.log('✦ Database ready');
 }
@@ -177,7 +213,7 @@ const RESEND_API_KEY = process.env.RESEND_API_KEY;
 
 async function sendEmail(to, subject, html) {
   if (!RESEND_API_KEY) {
-    console.log(`[email] No API key — would have sent to ${to}: ${subject}`);
+    console.log(`[email] No API key — would have sent to ${maskEmail(to)}: ${subject}`);
     return { ok: true };
   }
   try {
@@ -188,7 +224,7 @@ async function sendEmail(to, subject, html) {
     });
     const data = await r.json();
     if (!r.ok) console.error('[email] Resend error:', data);
-    else console.log(`✦ Email sent to ${to}: ${subject}`);
+    else console.log(`✦ Email sent to ${maskEmail(to)}: ${subject}`);
     return { ok: r.ok };
   } catch(err) {
     console.error('[email] Send failed:', err);
@@ -249,9 +285,14 @@ function json(res, code, obj) {
 async function pubFromToken(authHeader) {
   const token = (authHeader || '').replace('Bearer ', '').trim();
   if (!token) return null;
+  const now = Date.now();
+  // Match either the publisher's own session_token OR an admin view token
+  // (so admin "View as" doesn't sign the publisher out).
   const r = await pool.query(
-    'SELECT * FROM publishers WHERE session_token=$1 AND session_expires>$2',
-    [token, Date.now()]
+    `SELECT * FROM publishers
+      WHERE (session_token=$1 AND session_expires>$2)
+         OR (admin_view_token=$1 AND admin_view_expires>$2)`,
+    [token, now]
   );
   return r.rows[0] || null;
 }
@@ -285,7 +326,7 @@ const server = http.createServer((req, res) => {
           'INSERT INTO waitlist (email, source) VALUES ($1, $2) ON CONFLICT DO NOTHING',
           [email, 'website']
         );
-        console.log(`✦ Waitlist: ${email}`);
+        console.log(`✦ Waitlist: ${maskEmail(email)}`);
         json(res, 200, {ok:true});
       } catch(e) { console.error(e); json(res, 500, {}); }
     });
@@ -482,7 +523,7 @@ const server = http.createServer((req, res) => {
           'INSERT INTO waitlist (email, source) VALUES ($1, $2) ON CONFLICT DO NOTHING',
           [email, 'mobile_sendlink']
         );
-        console.log(`✦ Mobile send-link: ${email}`);
+        console.log(`✦ Mobile send-link: ${maskEmail(email)}`);
         sendEmail(email, 'Your Inkstain download link', `
 <!DOCTYPE html>
 <html>
@@ -546,12 +587,12 @@ const server = http.createServer((req, res) => {
           return;
         }
         const id = crypto.randomBytes(8).toString('hex');
-        const passwordHash = crypto.createHash('sha256').update(password).digest('hex');
+        const passwordHash = await hashPassword(password);
         await pool.query(
           'INSERT INTO accounts (id, name, email, password_hash, type, genre, school, invite_code, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)',
           [id, name, email, passwordHash, type||'author', genre||'', school||'', invite_code||'', new Date().toISOString()]
         );
-        console.log(`✦ New account: ${email} [${type}]${school ? ' @ ' + school : ''}`);
+        console.log(`✦ New account: ${maskEmail(email)} [${type}]${school ? ' @ ' + school : ''}`);
         sendEmail(email, 'Welcome to Inkstain — your Trail starts now', `
 <!DOCTYPE html>
 <html>
@@ -605,10 +646,16 @@ const server = http.createServer((req, res) => {
         const { email, password } = JSON.parse(body);
         const result = await pool.query('SELECT * FROM accounts WHERE email=$1', [email]);
         const account = result.rows[0];
-        const passwordHash = crypto.createHash('sha256').update(password).digest('hex');
-        if (!account || account.password_hash !== passwordHash) {
+        const verify = account ? await verifyPassword(password, account.password_hash) : { ok: false, needsRehash: false };
+        if (!account || !verify.ok) {
           json(res, 401, {error:'Invalid email or password'});
           return;
+        }
+        if (verify.needsRehash) {
+          try {
+            const newHash = await hashPassword(password);
+            await pool.query('UPDATE accounts SET password_hash=$1 WHERE id=$2', [newHash, account.id]);
+          } catch (e) { console.error('rehash failed', e); }
         }
         const token = crypto.randomBytes(32).toString('hex');
         const expires = Date.now() + 30 * 24 * 60 * 60 * 1000;
@@ -795,14 +842,19 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // GET /api/admin/publishers/:id/impersonate — generates a temp publisher session token
+  // GET/POST /api/admin/publishers/:id/impersonate — issues a temporary admin_view_token.
+  // Does NOT touch the publisher's real session_token, so their active session stays intact.
   const adminImpersonateMatch = pathname.match(/^\/api\/admin\/publishers\/([^/]+)\/impersonate$/);
-  if (adminImpersonateMatch && req.method === 'GET') {
+  if (adminImpersonateMatch && (req.method === 'GET' || req.method === 'POST')) {
     if (!isAdminAuthenticated(req)) { json(res, 401, { error: 'Unauthorized' }); return; }
     const pubId = adminImpersonateMatch[1];
     (async () => {
       const tempToken = crypto.randomBytes(24).toString('hex');
-      await pool.query('UPDATE publishers SET session_token=$1, session_expires=$2 WHERE id=$3', [tempToken, Date.now() + 2 * 60 * 60 * 1000, pubId]);
+      const expires = Date.now() + 2 * 60 * 60 * 1000; // 2 hours
+      await pool.query(
+        'UPDATE publishers SET admin_view_token=$1, admin_view_expires=$2 WHERE id=$3',
+        [tempToken, expires, pubId]
+      );
       json(res, 200, { token: tempToken });
     })().catch(e => { console.error(e); json(res, 500, { error: 'Server error' }); });
     return;
@@ -830,7 +882,7 @@ const server = http.createServer((req, res) => {
         const existing = await pool.query('SELECT id FROM publishers WHERE email=$1', [email]);
         if (existing.rows.length > 0) { json(res, 400, {error:'Account already exists'}); return; }
         const id = crypto.randomBytes(8).toString('hex');
-        const passwordHash = crypto.createHash('sha256').update(password).digest('hex');
+        const passwordHash = await hashPassword(password);
         const token = crypto.randomBytes(24).toString('hex');
         const expires = Date.now() + 30 * 24 * 60 * 60 * 1000;
         const defaultPolicy = JSON.stringify({ requires_trail: 'preferred', disclosure_level: 'summary', accepts_ai: 'case-by-case' });
@@ -839,7 +891,7 @@ const server = http.createServer((req, res) => {
           'INSERT INTO publishers (id, org, pub_type, name, role, email, password_hash, policy, session_token, session_expires, created_at, plan, plan_status, trial_ends_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)',
           [id, org, type||'other', name, role||'', email, passwordHash, defaultPolicy, token, expires, new Date().toISOString(), 'trial', 'trialing', trialEndsAt]
         );
-        console.log(`✦ Publisher signup: ${org} (${email})`);
+        console.log(`✦ Publisher signup: ${org} (${maskEmail(email)})`);
         json(res, 200, {ok:true, token, publisher:{id, org, pub_type:type, name, role, email}});
       } catch(e) { console.error(e); json(res, 500, {error:'Server error'}); }
     });
@@ -857,9 +909,15 @@ const server = http.createServer((req, res) => {
         if (!email || !password) { json(res, 400, {error:'Missing fields'}); return; }
         const result = await pool.query('SELECT * FROM publishers WHERE email=$1', [email]);
         const pub = result.rows[0];
-        const passwordHash = crypto.createHash('sha256').update(password).digest('hex');
-        if (!pub || pub.password_hash !== passwordHash) {
+        const verify = pub ? await verifyPassword(password, pub.password_hash) : { ok: false, needsRehash: false };
+        if (!pub || !verify.ok) {
           json(res, 401, {error:'Invalid email or password'}); return;
+        }
+        if (verify.needsRehash) {
+          try {
+            const newHash = await hashPassword(password);
+            await pool.query('UPDATE publishers SET password_hash=$1 WHERE id=$2', [newHash, pub.id]);
+          } catch (e) { console.error('rehash failed', e); }
         }
         const token = crypto.randomBytes(24).toString('hex');
         const expires = Date.now() + 30 * 24 * 60 * 60 * 1000;
@@ -867,7 +925,7 @@ const server = http.createServer((req, res) => {
           'UPDATE publishers SET session_token=$1, session_expires=$2 WHERE id=$3',
           [token, expires, pub.id]
         );
-        console.log(`✦ Publisher login: ${email}`);
+        console.log(`✦ Publisher login: ${maskEmail(email)}`);
         json(res, 200, {token, publisherId: pub.id, name: pub.name});
       } catch(e) { console.error(e); json(res, 500, {error:'Server error'}); }
     });
@@ -908,7 +966,7 @@ const server = http.createServer((req, res) => {
     <p style="font-size:13px;color:rgba(27,42,59,.3);text-align:center;margin-top:32px;font-style:italic;">The written word will prevail.</p>
   </div>
 </body></html>`);
-          console.log(`✦ Password reset requested: ${email}`);
+          console.log(`✦ Password reset requested: ${maskEmail(email)}`);
         }
         json(res, 200, {ok:true});
       } catch(e) { console.error(e); json(res, 500, {error:'Server error'}); }
@@ -934,12 +992,12 @@ const server = http.createServer((req, res) => {
         if (!result.rows[0]) {
           json(res, 400, {error:'Reset link is invalid or has expired'}); return;
         }
-        const passwordHash = crypto.createHash('sha256').update(password).digest('hex');
+        const passwordHash = await hashPassword(password);
         await pool.query(
           'UPDATE publishers SET password_hash=$1, reset_token=NULL, reset_token_expires_at=NULL WHERE id=$2',
           [passwordHash, result.rows[0].id]
         );
-        console.log(`✦ Password reset complete: ${result.rows[0].email}`);
+        console.log(`✦ Password reset complete: ${maskEmail(result.rows[0].email)}`);
         json(res, 200, {ok:true});
       } catch(e) { console.error(e); json(res, 500, {error:'Server error'}); }
     });
@@ -1000,7 +1058,7 @@ const server = http.createServer((req, res) => {
     <p style="font-size:13px;color:rgba(27,42,59,.3);text-align:center;margin-top:32px;font-style:italic;">The written word will prevail.</p>
   </div>
 </body></html>`);
-        console.log(`✦ Publisher invite sent: ${pub.org} → ${email}`);
+        console.log(`✦ Publisher invite sent: ${pub.org} → ${maskEmail(email)}`);
         json(res, 200, {ok:true});
       } catch(e) { console.error(e); json(res, 500, {error:'Server error'}); }
     });
